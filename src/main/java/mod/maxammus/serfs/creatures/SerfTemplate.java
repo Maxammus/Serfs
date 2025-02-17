@@ -9,9 +9,6 @@ import org.gotti.wurmunlimited.modsupport.creatures.ModCreature;
 
 import java.util.logging.Logger;
 
-//TODO  public final void addTempSkills() {final float initialTempValue = (WurmId.getType(this.id) == 0) ? Servers.localServer.getSkilloverallval() :
-//                                                                                                                   1.0f;
-//edit that to have serfs use
 public class SerfTemplate  implements ModCreature {
     private final Logger logger = Logger.getLogger(this.getClass().getName());
     public static int templateId;
@@ -40,8 +37,6 @@ public class SerfTemplate  implements ModCreature {
         builder.skill(SkillList.SOUL_STRENGTH, start);
         builder.skill(SkillList.SOUL_DEPTH, start);
         builder.skill(SkillList.GROUP_FIGHTING, Servers.localServer.getSkillfightval());
-
-
 
         builder.baseCombatRating(4);
         builder.childTemplate(66);

@@ -9,6 +9,7 @@ import com.wurmonline.server.behaviours.ActionEntry;
 import com.wurmonline.server.behaviours.MethodsItems;
 import com.wurmonline.server.behaviours.NoSuchActionException;
 import com.wurmonline.server.creatures.*;
+import com.wurmonline.server.creatures.ai.NoPathException;
 import com.wurmonline.server.creatures.ai.Path;
 import com.wurmonline.server.creatures.ai.PathFinder;
 import com.wurmonline.server.items.Item;
@@ -32,7 +33,6 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 
-//TODO: non-temp skills
 public class Serf extends Creature implements MiscConstants {
     public List<ActionEntry> lastAvailableActions = new ArrayList<>();
     public long ownerId = NOID;
@@ -158,12 +158,9 @@ public class Serf extends Creature implements MiscConstants {
                 maybeDoLastMovementToTask();
                 return null;
             }
-            //TODO: turn this back to noPath exception after debugging
         }
-        catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
+        catch (NoPathException ignored) { }
+        return null;
     }
 
     public void handleOwnerQuestionResponse(Properties properties) {

@@ -23,7 +23,6 @@ import java.util.stream.Collectors;
 import static com.wurmonline.server.utils.BMLBuilder.*;
 import static mod.maxammus.serfs.util.BMLUtil.openBracket;
 
-//TODO: Look into how edit cart perms/maybe other questions update the window without reopening
 public class ManageSerfQuestion implements ModQuestion {
 
     static Logger logger = Logger.getLogger(ManageSerfQuestion.class.getName());

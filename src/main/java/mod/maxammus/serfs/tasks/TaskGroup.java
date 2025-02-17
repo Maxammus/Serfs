@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 
-//TODO: individual/group task option
 public class TaskGroup extends TaskQueue {
     private final Logger logger = Logger.getLogger(this.getClass().getName());
     public boolean groupwide = false;

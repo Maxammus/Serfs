@@ -42,9 +42,6 @@ public class TaskArea extends TaskQueue implements CounterTypes {
     ArrayList<Item> targetItems = new ArrayList<>();
     ArrayList<Creature> targetCreatures = new ArrayList<>();
 
-
-//TODO: change position by decoding target id to keep border info intact
-    //TODO: Wide/deep task distribution
     public TaskArea(long playerId, String name, int tileX, int tileY, int layer, int floor, int length, int width, float rotation) {
         super(playerId, name);
         this.tileX = tileX;
@@ -143,7 +140,6 @@ public class TaskArea extends TaskQueue implements CounterTypes {
             task.pos = targetPos;
         }
         //pre-check task if enabled, keep looking if check fails
-        //TODO: A serf failing actionIsAvailable due to a full inv/etc can reject the entire area
         while(++counter < getResetCount() && (precheckTasks && !task.taskActionIsAvailable(serf, true)));
         if(targetId == NOID || (precheckTasks && !task.taskActionIsAvailable(serf, true)))
             return toRet;
