@@ -24,11 +24,6 @@ public class ReflectionUtility {
         ExprEditor exprEditor = getMethodCallReplacer(target, replace);
         ctMethod.instrument(exprEditor);
     }
-//    public static void replaceDeclared(String className, String methodName, String desc, String target, String replace) throws NotFoundException, CannotCompileException {
-//        CtMethod ctMethod = classPool.getCtClass(className).getDeclaredMethod(methodName);
-//        ExprEditor exprEditor = getMethodCallReplacer(target, replace);
-//        ctMethod.instrument(exprEditor);
-//    }
 
     public static void replaceNewCall(String className, String methodName, String desc, String target, String replace) throws NotFoundException, CannotCompileException {
         CtMethod ctMethod = getMethod(className, methodName, desc);
