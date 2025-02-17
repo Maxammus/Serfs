@@ -72,6 +72,7 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
             logger.info("startingSkillLevel: " + startingSkillLevel);
             logger.info("maxActiveSerfs: " + maxActiveSerfs);
             logger.info("serfContractPrice: " + serfContractPrice);
+            logger.info("maxAreaSize: " + maxAreaSize);
             logger.info("tradeableSerfs: " + tradeableSerfs);
             logger.info("whitelist: " + whitelist);
             logger.info("blacklist: " + blacklist);
