@@ -1,5 +1,6 @@
 package mod.maxammus.serfs.tasks;
 
+import com.wurmonline.server.Items;
 import com.wurmonline.server.items.Item;
 import mod.maxammus.serfs.creatures.Serf;
 import mod.maxammus.serfs.util.DBUtil;
@@ -13,7 +14,7 @@ import java.util.logging.Logger;
 public class TaskQueue {
     private final Logger logger = Logger.getLogger(this.getClass().getName());
     public ArrayList<Task> queue = new ArrayList<>();
-    public ArrayList<Item> containers = new ArrayList<>();
+    public ArrayList<Long> containers = new ArrayList<>();
     public ArrayList<Serf> assignedSerfs = new ArrayList<>();
     public boolean paused = false;
     public String name;
@@ -118,7 +119,7 @@ public class TaskQueue {
     public List<Item> getContainerGroup(String group) {
         group = group.replace("Group: ", "");
         ArrayList<Item> toRet = new ArrayList<>();
-        for(Item item : containers)
+        for(Item item : getContainers())
             if(item.getDescription().equals(group))
                 toRet.add(item);
         return toRet;
@@ -206,7 +207,7 @@ public class TaskQueue {
     }
 
     public void removeContainer(long containerId) {
-        containers.removeIf(item -> item.getWurmId() == containerId);
+        containers.removeIf(id -> id == containerId);
         DBUtil.executeSingleStatement("DELETE FROM TaskContainerAssignments WHERE QUEUEID=? AND ITEMID=?", queueId, containerId);
     }
 
@@ -226,10 +227,23 @@ public class TaskQueue {
         }
     }
 
-    public void addContainer(Item target) {
+    public void addContainer(long target) {
         if(!containers.contains(target)) {
-            DBUtil.executeSingleStatement("INSERT INTO TaskContainerAssignments (ITEMID, QUEUEID) VALUES (?,?)", target.getWurmId(), queueId);
+            DBUtil.executeSingleStatement("INSERT INTO TaskContainerAssignments (ITEMID, QUEUEID) VALUES (?,?)", target, queueId);
             containers.add(target);
         }
+    }
+
+    public ArrayList<Item> getContainers() {
+        ArrayList<Item> toRet = new ArrayList<>(containers.size());
+        for(int i = 0; i < containers.size(); i++) {
+            Item item = Items.getItemOptional(containers.get(i)).orElse(null);
+            if(item == null) {
+                removeContainer(containers.get(i));
+                continue;
+            }
+            toRet.add(item);
+        }
+        return toRet;
     }
 }

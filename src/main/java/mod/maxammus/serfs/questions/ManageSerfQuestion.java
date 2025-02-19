@@ -135,7 +135,7 @@ public class ManageSerfQuestion implements ModQuestion {
             TaskProfile profile = taskProfiles.get(i);
             ArrayList<Item> containers = new ArrayList<>();
             if (profile.getSelectedQueue() != null) {
-                containers = profile.getSelectedQueue().containers;
+                containers = profile.getSelectedQueue().getContainers();
                 getDropdowns(profile);
             }
             String queueIdentity = profile.getSelectedQueueIdentity();
@@ -205,7 +205,7 @@ public class ManageSerfQuestion implements ModQuestion {
 
         Map<String, Integer> groups = new HashMap<>();
         ArrayList<String> containers = new ArrayList<>();
-        taskProfile.getSelectedQueue().containers.forEach(item ->  {
+        taskProfile.getSelectedQueue().getContainers().forEach(item ->  {
             if(!item.getDescription().equals("")) {
                 String group = "Group: " + item.getDescription();
                 groups.put(group, groups.getOrDefault(group, 0) + 1);
@@ -323,20 +323,20 @@ public class ManageSerfQuestion implements ModQuestion {
             //Not ground (0) or anything after container groups in the dropdown
             if(dropdownIndex != 0 && dropdownIndex <= groups) {
                 profile.setTakeContainerGroup(containerDropdown.get(dropdownIndex));
-                profile.setTakeContainer(null);
+                profile.takeContainerId = -10;
             }
             else {
                 profile.setTakeContainerGroup("");
-                profile.setTakeContainer(ListUtil.getOrNull(profile.getSelectedQueue().containers, dropdownIndex - groups - 1));
+                profile.takeContainerId = ListUtil.getOrDefault(profile.getSelectedQueue().containers, dropdownIndex - groups - 1, -10L);
             }
             dropdownIndex = Integer.parseInt(answers.getProperty("dropContainer." + index));
             if(dropdownIndex != 0 && dropdownIndex <= groups) {
                 profile.setDropContainerGroup(containerDropdown.get(dropdownIndex));
-                profile.setDropContainer(null);
+                profile.dropContainerId = -10;
             }
             else {
                 profile.setDropContainerGroup("");
-                profile.setDropContainer(ListUtil.getOrNull(profile.getSelectedQueue().containers, dropdownIndex - groups - 1));
+                profile.dropContainerId = ListUtil.getOrDefault(profile.getSelectedQueue().containers, dropdownIndex - groups - 1, -10L);
             }
             profile.setRepeat(Integer.parseInt(answers.getProperty("repeatNum." + index)));
             profile.setWhileTimerShows(Boolean.parseBoolean(answers.getProperty("whileTimerShows." + index)));
@@ -344,8 +344,8 @@ public class ManageSerfQuestion implements ModQuestion {
             profile.setReAdd(Boolean.parseBoolean(answers.getProperty("addToBottom." + index)));
         }
         else {
-            profile.setTakeContainer(null);
-            profile.setDropContainer(null);
+            profile.takeContainerId = -10;
+            profile.dropContainerId = -10;
             profile.setTakeContainerGroup("");
             profile.setDropContainerGroup("");
             profile.setActiveItemTemplate(null);

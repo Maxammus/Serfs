@@ -1,5 +1,6 @@
 package mod.maxammus.serfs.questions;
 
+import com.wurmonline.server.Items;
 import com.wurmonline.server.creatures.Creature;
 import com.wurmonline.server.items.Item;
 import com.wurmonline.server.questions.Question;
@@ -109,7 +110,12 @@ public class EditQueueQuestion implements ModQuestion {
 
     private void addContainers(BMLBuilder bmlBuilder, TaskQueue queue) {
         BMLBuilder containerTable = createTable(4);
-        for (Item container : queue.containers) {
+        for (long containerId : queue.containers) {
+            Item container = Items.getItemOptional(containerId).orElse(null);
+            if(container == null) {
+                queue.removeContainer(containerId);
+                continue;
+            }
             String name;
             if(!container.getDescription().equals(""))
                 name = container.getActualName() + "(" + container.getDescription() + ")";

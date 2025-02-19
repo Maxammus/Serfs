@@ -131,8 +131,7 @@ public class TaskHandler {
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 long itemId = rs.getLong("ITEMID");
-                Item container = Items.getItem(itemId);
-                taskQueues.get(rs.getLong("QUEUEID")).containers.add(container);
+                taskQueues.get(rs.getLong("QUEUEID")).containers.add(itemId);
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -348,7 +347,7 @@ public class TaskHandler {
 
     public void removeSerfFromAll(Serf serf) {
         while(!serf.taskQueue.containers.isEmpty())
-         serf.taskQueue.removeContainer(serf.taskQueue.containers.get(0).getWurmId());
+         serf.taskQueue.removeContainer(serf.taskQueue.containers.get(0));
         while(!serf.taskQueue.queue.isEmpty())
          serf.taskQueue.removeTask(serf.taskQueue.queue.get(0));
         for (TaskQueue queue : taskGroups)

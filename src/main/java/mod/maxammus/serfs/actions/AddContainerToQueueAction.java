@@ -75,7 +75,7 @@ public class AddContainerToQueueAction implements ModAction {
                     {
                         TaskProfile taskProfile = TaskHandler.getTaskHandler(performer.getWurmId()).getSelectedProfile();
                         if(taskProfile != null && taskProfile.getSelectedQueue() != null)
-                            taskProfile.getSelectedQueue().addContainer(target);
+                            taskProfile.getSelectedQueue().addContainer(target.getWurmId());
                         else
                             performer.getCommunicator().sendNormalServerMessage("No task target selected.");
                     }

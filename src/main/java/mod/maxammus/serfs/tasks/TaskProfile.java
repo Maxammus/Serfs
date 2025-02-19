@@ -19,8 +19,8 @@ public class TaskProfile {
     private boolean whileTimerShows = false;
     private boolean reAdd = false;
     private boolean selected = false;
-    private long takeContainerId;
-    private long dropContainerId;
+    public long takeContainerId;
+    public long dropContainerId;
     private String takeContainerGroup = "";
     private String dropContainerGroup = "";
     private boolean whileActionAvailable;
@@ -36,8 +36,8 @@ public class TaskProfile {
 
     public TaskProfile(ResultSet rs) throws SQLException {
         profileId = rs.getLong("PROFILEID");
-        setTakeContainer(Items.getItemOptional(rs.getLong("TAKECONTAINER")).orElse(null));
-        setDropContainer(Items.getItemOptional(rs.getLong("DROPCONTAINER")).orElse(null));
+        takeContainerId = rs.getLong("TAKECONTAINER");
+        dropContainerId = rs.getLong("DROPCONTAINER");
         setRepeat(rs.getInt("REPEAT"));
         setWhileTimerShows(rs.getBoolean("WHILETIMERSHOWS"));
         setWhileActionAvailable(rs.getBoolean("WHILEACTIONAVAILABLE"));
@@ -149,16 +149,8 @@ public class TaskProfile {
         return Items.getItemOptional(takeContainerId).orElse(null);
     }
 
-    public void setTakeContainer(Item takeContainerId) {
-        this.takeContainerId = takeContainerId != null ? takeContainerId.getWurmId() : -10;
-    }
-
     public Item getDropContainer() {
         return Items.getItemOptional(dropContainerId).orElse(null);
-    }
-
-    public void setDropContainer(Item dropContainerId) {
-        this.dropContainerId = dropContainerId != null ? dropContainerId.getWurmId() : -10;
     }
 
     public String getTakeContainerGroup() {
