@@ -43,6 +43,7 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
     public static int serfContractPrice = 50000;
     public static int maxAreaSize = 100;
     public static boolean tradeableSerfs = false;
+    private static boolean addToTraders;
     public static List<Short> whitelist = new ArrayList<>();
     public static List<Short> blacklist = new ArrayList<>();
     public static List<Short> autoDropWhenCannotCarryActions = new ArrayList<>();
@@ -62,6 +63,7 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
             serfContractPrice = Integer.parseInt(properties.getProperty("serfContractPrice", Integer.toString(serfContractPrice)));
             maxAreaSize = Integer.parseInt(properties.getProperty("maxAreaSize", Integer.toString(maxAreaSize)));
             tradeableSerfs = Boolean.parseBoolean(properties.getProperty("tradeableSerfs", Boolean.toString(tradeableSerfs)));
+            addToTraders = Boolean.parseBoolean(properties.getProperty("addToTraders", Boolean.toString(addToTraders)));
             for(String s : properties.getProperty("whitelist", "").split(","))
                 if (!s.isEmpty()) whitelist.add(Short.parseShort(s));
             for(String s : properties.getProperty("blacklist", "").split(","))
@@ -74,6 +76,7 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
             logger.info("serfContractPrice: " + serfContractPrice);
             logger.info("maxAreaSize: " + maxAreaSize);
             logger.info("tradeableSerfs: " + tradeableSerfs);
+            logger.info("addToTraders: " + addToTraders);
             logger.info("whitelist: " + whitelist);
             logger.info("blacklist: " + blacklist);
             logger.info("autoDropWhenCannotCarryActions: " + autoDropWhenCannotCarryActions);
@@ -197,6 +200,16 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
             communicatorClass.getMethod("sendUseItem", "(JLjava/lang/String;BIIIIII)V")
                     .instrument(getType);
 
+            if(addToTraders) {
+                logger.info("Adding serf contracts to traders.");
+                classPool.getMethod("com.wurmonline.server.creatures.TradeHandler", "addItemsToTrade")
+                        .insertBefore(""+
+                                "if (trade != null && !shop.isPersonal() && creature.getInventory().findItem(mod.maxammus.serfs.items.SerfContract.templateId) == null)" +
+                                        "creature.getInventory().insertItem("+
+                                        "   com.wurmonline.server.creatures.Creature.createItem(" +
+                                        "       mod.maxammus.serfs.items.SerfContract.templateId," +
+                                        "       10f + com.wurmonline.server.Server.rand.nextInt(80)));");
+            }
         } catch (NotFoundException | CannotCompileException e) {
             throw new RuntimeException(e);
         }
