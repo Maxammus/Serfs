@@ -347,10 +347,10 @@ public class TaskHandler {
     }
 
     public void removeSerfFromAll(Serf serf) {
-        for (Item container : serf.taskQueue.containers)
-            serf.taskQueue.removeContainer(container.getWurmId());
-        for (Task task : serf.taskQueue.queue)
-            serf.taskQueue.removeTask(task);
+        while(!serf.taskQueue.containers.isEmpty())
+         serf.taskQueue.removeContainer(serf.taskQueue.containers.get(0).getWurmId());
+        while(!serf.taskQueue.queue.isEmpty())
+         serf.taskQueue.removeTask(serf.taskQueue.queue.get(0));
         for (TaskQueue queue : taskGroups)
             queue.removeSerf(serf);
         for (TaskQueue queue : taskAreas)
