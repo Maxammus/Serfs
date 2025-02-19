@@ -63,11 +63,11 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
             maxAreaSize = Integer.parseInt(properties.getProperty("maxAreaSize", Integer.toString(maxAreaSize)));
             tradeableSerfs = Boolean.parseBoolean(properties.getProperty("tradeableSerfs", Boolean.toString(tradeableSerfs)));
             for(String s : properties.getProperty("whitelist", "").split(","))
-                if (!s.equals("")) whitelist.add(Short.parseShort(s));
+                if (!s.isEmpty()) whitelist.add(Short.parseShort(s));
             for(String s : properties.getProperty("blacklist", "").split(","))
-                if (!s.equals("")) blacklist.add(Short.parseShort(s));
+                if (!s.isEmpty()) blacklist.add(Short.parseShort(s));
             for(String s : properties.getProperty("autoDropWhenCannotCarryActions", "").split(","))
-                if (!s.equals("")) autoDropWhenCannotCarryActions.add(Short.parseShort(s));
+                if (!s.isEmpty()) autoDropWhenCannotCarryActions.add(Short.parseShort(s));
 
             logger.info("startingSkillLevel: " + startingSkillLevel);
             logger.info("maxActiveSerfs: " + maxActiveSerfs);
@@ -202,6 +202,7 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
         }
     }
 
+    @SuppressWarnings("unused")
     public static boolean shouldSendActionToSerf(Creature creature, Communicator communicator, long subject, long target, short action) {
         Item subjectItem = null;
         Item targetItem = null;
@@ -290,11 +291,11 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
         ModActions.registerAction(new AddContainerToQueueAction());
         ModActions.registerAction(new DropAllNonToolItems());
         SerfInstructor.initCreationEntry();
-        DBUtil.createDBs();
 
         //thrown runtime exceptions will get caught by the modloader and not end the program
         //so let's just manually shut it down
         try {
+            DBUtil.createDBs();
             TaskHandler.init();
         } catch (RuntimeException e) {
             Server.getInstance().shutDown("Serf mod failed to load", e);

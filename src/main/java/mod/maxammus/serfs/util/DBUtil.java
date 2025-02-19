@@ -1,9 +1,6 @@
 package mod.maxammus.serfs.util;
 
-import com.wurmonline.server.DbConnector;
-import com.wurmonline.server.utils.DbUtilities;
 import org.gotti.wurmunlimited.modsupport.ModSupportDb;
-
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -94,7 +91,12 @@ public class DBUtil {
                 "EXACTTARGET BOOLEAN NOT NULL," +
                 "FOREIGN KEY (PARENT) REFERENCES TaskQueues(QUEUEID) ON DELETE CASCADE)");
             tableCreation.forEach((tableName, sql) -> {
-                executeSingleStatement(sql);
+                try (Connection dbcon = ModSupportDb.getModSupportDb();
+                     PreparedStatement ps = dbcon.prepareStatement(sql)) {
+                    ps.execute();
+                } catch (SQLException e) {
+                    throw new RuntimeException("Failed to create table " + tableName, e);
+                }
             });
     }
 
