@@ -217,6 +217,7 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
 
             logger.info("Making Serf class extend Player and patching any overridden methods to call their Creature versions.");
             CtClass serfClass = classPool.getCtClass("mod.maxammus.serfs.creatures.Serf");
+            CtClass dummyClass = classPool.getCtClass("mod.maxammus.serfs.creatures.PlayerButNoOverriddenMethods");
             CtClass playerClass = classPool.getCtClass("com.wurmonline.server.players.Player");
             CtClass creatureClass = classPool.getCtClass(creature);
 
@@ -233,19 +234,13 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
             playerClass.addConstructor(ctv);
             playerClass.addConstructor(v);
 
-            //Make a dummy class extend Player, then Serf extend the dummy to make
-            //calling super methods in Serf properly call Creature after editing methods later
             playerClass.setModifiers(playerClass.getModifiers() ^ Modifier.FINAL);
-            CtClass dummyClass = classPool.makeClass(serfClass.getName()+"_", playerClass);
-            serfClass.setSuperclass(dummyClass);
+            dummyClass.setSuperclass(playerClass);
 
 
             //Return all Creature methods that Player overrides back to the Creature method
-            Map<String, CtMethod> dummyMethods = new HashMap<>(1500);
             Map<String, CtMethod> creatureMethods = new HashMap<>(1250);
             Map<String, CtMethod> newPlayerMethods = new HashMap<>(750);
-            for(CtMethod ctMethod : dummyClass.getMethods())
-                dummyMethods.put(ctMethod.getName() + ctMethod.getSignature(), ctMethod);
             for(CtMethod ctMethod : creatureClass.getDeclaredMethods())
                 creatureMethods.put(ctMethod.getName() + ctMethod.getSignature(), ctMethod);
             for(CtMethod ctMethod : playerClass.getDeclaredMethods())
@@ -259,14 +254,11 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
                 playerOverriddenMethodsToPatch.remove(ctMethod);
 
             originalCreatureMethods = new MethodHandle[playerOverriddenMethodsToPatch.size()];
-            ConstPool constPool = dummyClass.getClassFile().getConstPool();
-            int playerIndex = constPool.addClassInfo(playerClass);
-            int creatureIndex = constPool.addClassInfo(creatureClass);
             for(String methodSignature : newPlayerMethods.keySet()) {
                 CtMethod playerMethod = newPlayerMethods.get(methodSignature);
                 //Turn method not final
                 playerMethod.setModifiers(playerMethod.getModifiers() & ~(Modifier.FINAL));
-                        CtMethod dummyMethod = new CtMethod(playerMethod.getReturnType(), playerMethod.getName(), playerMethod.getParameterTypes(), dummyClass);
+                CtMethod dummyMethod = new CtMethod(playerMethod.getReturnType(), playerMethod.getName(), playerMethod.getParameterTypes(), dummyClass);
                 dummyMethod.setBody("throw new sun.reflect.generics.reflectiveObjects.NotImplementedException();");
                 dummyClass.addMethod(dummyMethod);
             }
@@ -282,53 +274,9 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
                     dummyMethod.setBody("return ($r) mod.maxammus.serfs.Serfs.originalCreatureMethods[" + i + "].bindTo(this).invokeWithArguments($args);");
                 else
                     dummyMethod.setBody("return ($r) mod.maxammus.serfs.Serfs.originalCreatureMethods[" + i + "].invokeWithArguments(new Object[] { this });");
-//                dummyMethod.setBody("return ($r) invokeHelper(" + i + ", $args);");
 
-//                int nameAndType = constPool.addNameAndTypeInfo(playerMethod.getName(), playerMethod.getSignature());
-//                int creatureMethodIndex = constPool.addMethodrefInfo(creatureIndex, nameAndType);
-//                int playerMethodIndex = constPool.addMethodrefInfo(playerIndex, nameAndType);
-//
-//                ByteBuffer search = ByteBuffer.allocate(3)
-//                        .put((byte)Opcode.INVOKESPECIAL)
-//                        .putShort((short)playerMethodIndex);
-//                ByteBuffer replace = ByteBuffer.allocate(3)
-//                        .put((byte)Opcode.INVOKESPECIAL)
-//                        .putShort((short)creatureMethodIndex);
-//                CodeReplacer codeReplacer = new CodeReplacer(dummyMethod.getMethodInfo().getCodeAttribute());
-//                constPool.print();
-//                System.out.println(Arrays.toString(search.array()));
-//                System.out.println(Arrays.toString(dummyMethod.getMethodInfo().getCodeAttribute().getCode()));
-//                InstructionPrinter.print(dummyMethod, System.out);
-//                try {
-//                    codeReplacer.replaceCode(search.array(), replace.array());
-//                } catch (BadBytecode e) {
-//                    throw new RuntimeException(e);
-//                }
-//                InstructionPrinter.print(dummyMethod, System.out);
-//
                 dummyClass.addMethod(dummyMethod);
-//                dummyMethod = dummyClass.getMethod(playerMethod.getName(), playerMethod.getSignature());
-//                InstructionPrinter.print(dummyMethod, System.out);
-//
             }
-
-//            dummyClass.getClassFile().getConstPool().renameClass(playerClass.getName(), creatureClass.getName());
-//            dummyClass.getClassFile().renameClass();
-
-//            //Find overridden methodrefs in const pool, replace the class they reference with Creature
-//            for(int j = 1; j < constPool.getSize(); ++j) {
-//                if(constPool.getTag(j) == ConstPool.CONST_Methodref) {
-//                    int nameAndType = constPool.getMethodrefNameAndType(j);
-//                    String name = constPool.getMethodrefName(j);
-//                    String desc = constPool.getMethodrefType(j);
-//                    MethodTypeInfo
-//                    if(playerOverriddenMethods.containsKey(name + desc)) {
-//                        constPool.
-//                    }
-//                }
-//            }
-
-
         } catch (NotFoundException | CannotCompileException e) {
             throw new RuntimeException(e);
         }

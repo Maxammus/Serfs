@@ -402,19 +402,6 @@ public class Serf extends Creature implements MiscConstants {
             logger.warning("Couldn't delete serf " + getWurmId() + " from TaskQueue database when destroying");
     }
 
-
-    public Object invokeHelper(int methodIndex, Object... args) {
-        try {
-            if(args.length > 0)
-                return Serfs.originalCreatureMethods[methodIndex].bindTo(this).invokeWithArguments(args);
-//                return Serfs.originalCreatureMethods[methodIndex].asFixedArity();
-            return Serfs.originalCreatureMethods[methodIndex].bindTo(this).invoke();
-        } catch (Throwable e) {
-            logger.severe("Serf.invokeHelper exception - " + e.getMessage());
-        }
-        return null;
-    }
-
     static {
         //Populate Serfs.originalCreatureMethods
         try {

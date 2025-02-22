@@ -3,6 +3,9 @@ import com.wurmonline.server.deities.Deity;
 import com.wurmonline.server.steam.SteamId;
 import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
+
+//Empty PlayerInfo class.  Probably not needed since all Player methods that would use this
+//should have been reflected away
 public class SerfInfo extends PlayerInfo {
 
     public SerfInfo(String aname) {
