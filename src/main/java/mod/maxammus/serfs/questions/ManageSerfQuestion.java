@@ -69,7 +69,7 @@ public class ManageSerfQuestion implements ModQuestion {
                 serfTable
                        .addButton("editQueue." + serf.taskQueue.queueId, "Manage", 45, 16, true)
                        .addLabel(serf.getName())
-                       .addLabel("Instructions: " + (serf.taskQueue.queue.size() + serf.taskQueue.queue.size()))
+                       .addLabel("Instructions: " + (serf.taskQueue.queue.size()))
    //                    .addLabel("At:" + taskQueue.queue.get(0).pos.x + " | " + taskQueue.queue.get(0).pos.y)
    //                    .addLabel("From: " + taskQueue.queue.get(0).parent.getIdentity())
                        .addLabel("Items: " + serf.getInventory().getNumItemsNotCoins())
