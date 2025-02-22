@@ -6,6 +6,7 @@ import com.wurmonline.server.creatures.Communicator;
 import com.wurmonline.server.creatures.Creature;
 import com.wurmonline.server.items.Item;
 import javassist.*;
+import javassist.bytecode.*;
 import javassist.expr.ExprEditor;
 import javassist.expr.MethodCall;
 import mod.maxammus.serfs.actions.AddContainerToQueueAction;
@@ -25,9 +26,9 @@ import org.gotti.wurmunlimited.modloader.interfaces.*;
 import org.gotti.wurmunlimited.modsupport.actions.ModActions;
 import org.gotti.wurmunlimited.modsupport.creatures.ModCreatures;
 
-import java.util.ArrayList;
+import java.lang.invoke.MethodHandle;
+import java.util.*;
 import java.util.List;
-import java.util.Properties;
 import java.util.logging.Logger;
 
 import static mod.maxammus.serfs.tasks.TaskHandler.requestSerfActions;
@@ -38,6 +39,7 @@ import static mod.maxammus.serfs.tasks.TaskHandler.requestSerfActions;
 //TODO: Check for world edge bugs in TaskArea etc
 public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable, ServerStartedListener, ItemTemplatesCreatedListener, ServerPollListener {
     private static final Logger logger = Logger.getLogger(Serfs.class.getName());
+    private final String version = "0.0.1";
     public static float startingSkillLevel = -1;
     public static int maxActiveSerfs = -1;
     public static int serfContractPrice = 50000;
@@ -51,8 +53,9 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
 
     private static ClassPool classPool;
     private static boolean serverStarted = false;
-    private final String version = "0.0.1";
 
+    public static MethodHandle[] originalCreatureMethods;
+    public static List<CtMethod> playerOverriddenMethodsToPatch = new ArrayList<>(750);
     @Override
     public void configure(Properties properties) {
         System.out.println("serf mod configure: ");
@@ -210,6 +213,122 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
                                         "       mod.maxammus.serfs.items.SerfContract.templateId," +
                                         "       10f + com.wurmonline.server.Server.rand.nextInt(80)));");
             }
+
+
+            logger.info("Making Serf class extend Player and patching any overridden methods to call their Creature versions.");
+            CtClass serfClass = classPool.getCtClass("mod.maxammus.serfs.creatures.Serf");
+            CtClass playerClass = classPool.getCtClass("com.wurmonline.server.players.Player");
+            CtClass creatureClass = classPool.getCtClass(creature);
+
+            //Add constructors Player is missing
+            CtClass lng = classPool.getCtClass("long");
+            CtClass template = classPool.getCtClass("com.wurmonline.server.creatures.CreatureTemplate");
+            CtConstructor jv = new CtConstructor(new CtClass[]{lng}, playerClass);
+            CtConstructor ctv = new CtConstructor(new CtClass[]{template}, playerClass);
+            CtConstructor v = new CtConstructor(new CtClass[]{}, playerClass);
+            jv.setBody("super($1);");
+            ctv.setBody("super($1);");
+            v.setBody("super();");
+            playerClass.addConstructor(jv);
+            playerClass.addConstructor(ctv);
+            playerClass.addConstructor(v);
+
+            //Make a dummy class extend Player, then Serf extend the dummy to make
+            //calling super methods in Serf properly call Creature after editing methods later
+            playerClass.setModifiers(playerClass.getModifiers() ^ Modifier.FINAL);
+            CtClass dummyClass = classPool.makeClass(serfClass.getName()+"_", playerClass);
+            serfClass.setSuperclass(dummyClass);
+
+
+            //Return all Creature methods that Player overrides back to the Creature method
+            Map<String, CtMethod> dummyMethods = new HashMap<>(1500);
+            Map<String, CtMethod> creatureMethods = new HashMap<>(1250);
+            Map<String, CtMethod> newPlayerMethods = new HashMap<>(750);
+            for(CtMethod ctMethod : dummyClass.getMethods())
+                dummyMethods.put(ctMethod.getName() + ctMethod.getSignature(), ctMethod);
+            for(CtMethod ctMethod : creatureClass.getDeclaredMethods())
+                creatureMethods.put(ctMethod.getName() + ctMethod.getSignature(), ctMethod);
+            for(CtMethod ctMethod : playerClass.getDeclaredMethods())
+                if(creatureMethods.containsKey(ctMethod.getName() + ctMethod.getSignature()))
+                    playerOverriddenMethodsToPatch.add(ctMethod);
+                else
+                    newPlayerMethods.put(ctMethod.getName() + ctMethod.getSignature(), ctMethod);
+
+            //Remove any methods  serf already has
+            for(CtMethod ctMethod : dummyClass.getDeclaredMethods())
+                playerOverriddenMethodsToPatch.remove(ctMethod);
+
+            originalCreatureMethods = new MethodHandle[playerOverriddenMethodsToPatch.size()];
+            ConstPool constPool = dummyClass.getClassFile().getConstPool();
+            int playerIndex = constPool.addClassInfo(playerClass);
+            int creatureIndex = constPool.addClassInfo(creatureClass);
+            for(String methodSignature : newPlayerMethods.keySet()) {
+                CtMethod playerMethod = newPlayerMethods.get(methodSignature);
+                //Turn method not final
+                playerMethod.setModifiers(playerMethod.getModifiers() & ~(Modifier.FINAL));
+                        CtMethod dummyMethod = new CtMethod(playerMethod.getReturnType(), playerMethod.getName(), playerMethod.getParameterTypes(), dummyClass);
+                dummyMethod.setBody("throw new sun.reflect.generics.reflectiveObjects.NotImplementedException();");
+                dummyClass.addMethod(dummyMethod);
+            }
+            for(int i = 0; i < playerOverriddenMethodsToPatch.size(); ++i) {
+                CtMethod playerMethod = playerOverriddenMethodsToPatch.get(i);
+                String methodSignature = playerMethod.getName() + playerMethod.getSignature();
+                //Turn method not final
+                playerMethod.setModifiers(playerMethod.getModifiers() & ~(Modifier.FINAL));
+                CtMethod dummyMethod = new CtMethod(playerMethod.getReturnType(), playerMethod.getName(), playerMethod.getParameterTypes(), dummyClass);
+                System.out.println(dummyMethod.getName());
+
+                if(dummyMethod.getParameterTypes().length > 0)
+                    dummyMethod.setBody("return ($r) mod.maxammus.serfs.Serfs.originalCreatureMethods[" + i + "].bindTo(this).invokeWithArguments($args);");
+                else
+                    dummyMethod.setBody("return ($r) mod.maxammus.serfs.Serfs.originalCreatureMethods[" + i + "].invokeWithArguments(new Object[] { this });");
+//                dummyMethod.setBody("return ($r) invokeHelper(" + i + ", $args);");
+
+//                int nameAndType = constPool.addNameAndTypeInfo(playerMethod.getName(), playerMethod.getSignature());
+//                int creatureMethodIndex = constPool.addMethodrefInfo(creatureIndex, nameAndType);
+//                int playerMethodIndex = constPool.addMethodrefInfo(playerIndex, nameAndType);
+//
+//                ByteBuffer search = ByteBuffer.allocate(3)
+//                        .put((byte)Opcode.INVOKESPECIAL)
+//                        .putShort((short)playerMethodIndex);
+//                ByteBuffer replace = ByteBuffer.allocate(3)
+//                        .put((byte)Opcode.INVOKESPECIAL)
+//                        .putShort((short)creatureMethodIndex);
+//                CodeReplacer codeReplacer = new CodeReplacer(dummyMethod.getMethodInfo().getCodeAttribute());
+//                constPool.print();
+//                System.out.println(Arrays.toString(search.array()));
+//                System.out.println(Arrays.toString(dummyMethod.getMethodInfo().getCodeAttribute().getCode()));
+//                InstructionPrinter.print(dummyMethod, System.out);
+//                try {
+//                    codeReplacer.replaceCode(search.array(), replace.array());
+//                } catch (BadBytecode e) {
+//                    throw new RuntimeException(e);
+//                }
+//                InstructionPrinter.print(dummyMethod, System.out);
+//
+                dummyClass.addMethod(dummyMethod);
+//                dummyMethod = dummyClass.getMethod(playerMethod.getName(), playerMethod.getSignature());
+//                InstructionPrinter.print(dummyMethod, System.out);
+//
+            }
+
+//            dummyClass.getClassFile().getConstPool().renameClass(playerClass.getName(), creatureClass.getName());
+//            dummyClass.getClassFile().renameClass();
+
+//            //Find overridden methodrefs in const pool, replace the class they reference with Creature
+//            for(int j = 1; j < constPool.getSize(); ++j) {
+//                if(constPool.getTag(j) == ConstPool.CONST_Methodref) {
+//                    int nameAndType = constPool.getMethodrefNameAndType(j);
+//                    String name = constPool.getMethodrefName(j);
+//                    String desc = constPool.getMethodrefType(j);
+//                    MethodTypeInfo
+//                    if(playerOverriddenMethods.containsKey(name + desc)) {
+//                        constPool.
+//                    }
+//                }
+//            }
+
+
         } catch (NotFoundException | CannotCompileException e) {
             throw new RuntimeException(e);
         }

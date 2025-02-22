@@ -14,13 +14,14 @@ import com.wurmonline.server.creatures.ai.Path;
 import com.wurmonline.server.creatures.ai.PathFinder;
 import com.wurmonline.server.items.Item;
 import com.wurmonline.server.items.ItemFactory;
-import com.wurmonline.server.players.Player;
+import com.wurmonline.server.players.SerfInfo;
 import com.wurmonline.server.questions.Question;
 import com.wurmonline.server.questions.Questions;
 import com.wurmonline.server.zones.NoSuchZoneException;
 import com.wurmonline.server.zones.VolaTile;
 import com.wurmonline.server.zones.Zone;
 import com.wurmonline.server.zones.Zones;
+import javassist.*;
 import mod.maxammus.serfs.Serfs;
 import mod.maxammus.serfs.actions.DropAllNonToolItems;
 import mod.maxammus.serfs.items.SerfContract;
@@ -29,11 +30,20 @@ import mod.maxammus.serfs.tasks.TaskHandler;
 import mod.maxammus.serfs.tasks.TaskQueue;
 import mod.maxammus.serfs.util.DBUtil;
 import org.gotti.wurmunlimited.modloader.ReflectionUtil;
-import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.util.*;
 
+import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.*;
+import java.util.logging.Logger;
+
+//Through use of reflection Serf actually extends Player during runtime
+//But doesn't use any of the methods Player overrode from Creature
 public class Serf extends Creature implements MiscConstants {
+    private static final Logger logger = Logger.getLogger(Serf.class.getName());
     public List<ActionEntry> lastAvailableActions = new ArrayList<>();
     public long ownerId = NOID;
     public TaskQueue taskQueue;
@@ -42,6 +52,7 @@ public class Serf extends Creature implements MiscConstants {
     long nextActionTime = 0;
     public boolean failedToCarry = false;
     public static int serfCount = 0;
+    private SerfInfo saveFile;
 
     public Deque<String> log = new ArrayDeque<String>() {
         public boolean add(String o) {
@@ -61,6 +72,7 @@ public class Serf extends Creature implements MiscConstants {
     @SuppressWarnings("unused")
     public Serf(long aId) throws Exception {
         super(aId);
+        saveFile = new SerfInfo("Serf");
         serfCount++;
         communicator = new SerfCommunicator(this);
     }
@@ -248,7 +260,7 @@ public class Serf extends Creature implements MiscConstants {
     }
 
     public boolean turnIntoContract() {
-        Player owner = Players.getInstance().getPlayerOrNull(ownerId);
+        Creature owner = Players.getInstance().getPlayerOrNull(ownerId);
         if(owner == null) {
             logger.warning("Couldn't find owner while tokenizing " + getWurmId());
             return false;
@@ -323,7 +335,6 @@ public class Serf extends Creature implements MiscConstants {
         status.setPositionXYZ(owner.getPosX(), owner.getPosY(), owner.getPositionZ());
         getStatus().setLayer(owner.getLayer());
         respawn();
-        TaskHandler.getTaskHandler(ownerId).addSerf(this);
     }
 
     private void maybeDoLastMovementToTask() {
@@ -389,5 +400,64 @@ public class Serf extends Creature implements MiscConstants {
         TaskHandler.getTaskHandler(ownerId).removeSerfFromAll(this);
         if(!taskQueue.deleteFromDb())
             logger.warning("Couldn't delete serf " + getWurmId() + " from TaskQueue database when destroying");
+    }
+
+
+    public Object invokeHelper(int methodIndex, Object... args) {
+        try {
+            if(args.length > 0)
+                return Serfs.originalCreatureMethods[methodIndex].bindTo(this).invokeWithArguments(args);
+//                return Serfs.originalCreatureMethods[methodIndex].asFixedArity();
+            return Serfs.originalCreatureMethods[methodIndex].bindTo(this).invoke();
+        } catch (Throwable e) {
+            logger.severe("Serf.invokeHelper exception - " + e.getMessage());
+        }
+        return null;
+    }
+
+    static {
+        //Populate Serfs.originalCreatureMethods
+        try {
+            //Class.getDeclaredMethod doesn't check return types so get all methods and manually check return type
+            Method[] creatureDeclaredMethods = Creature.class.getDeclaredMethods();
+
+            //Turn CtClass.getName()'s "Class[]" and "Class[][]" into Class.getName()'s "[LClass;" and "[[LClass;"
+            String regex = "(\\w+)(\\[+)]*(\\[*)]*";
+            String replacement = "$3$2L$1;";
+            for(int i = 0; i < Serfs.playerOverriddenMethodsToPatch.size(); i++) {
+                CtMethod ctMethod = Serfs.playerOverriddenMethodsToPatch.get(i);
+                String[] params = Arrays.stream(ctMethod.getParameterTypes())
+                        .map(ctClass ->
+                                ctClass.getName().replaceAll(regex, replacement))
+                        .toArray(String[]::new);
+
+
+                String returnType = ctMethod.getReturnType().getName().replaceAll(regex, replacement);
+                for(Method method : creatureDeclaredMethods) {
+                    String[] params2 = Arrays.stream(method.getParameterTypes())
+                            .map(Class::getName)
+                            .toArray(String[]::new);
+
+                    if (method.getName().equals(ctMethod.getName()) &&
+                            Arrays.equals(params2, params) &&
+                            method.getReturnType().getName().equals(returnType)) {
+                        //2 days of the JVM ruining every attempt, going as far as to ignore my directly changing the
+                        //bytecode to INVOKESPECIAL Creature methods, and still calling Player methods
+                        //Asked our new AI overlords for this hack:
+
+                        //Hackily bypass access checks somehow
+                        Constructor<MethodHandles.Lookup> lookupConstructor =
+                                MethodHandles.Lookup.class.getDeclaredConstructor(Class.class);
+                        lookupConstructor.setAccessible(true);
+                        MethodHandles.Lookup aLookup = lookupConstructor.newInstance(Creature.class);
+                        //get MethodHandle to directly call Creature class from Serf, ignoring that super class is Player.
+                        Serfs.originalCreatureMethods[i] = aLookup.findSpecial(Creature.class, method.getName(), MethodType.methodType(method.getReturnType(), method.getParameterTypes()), Creature.class);
+                        break;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }
