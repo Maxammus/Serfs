@@ -157,7 +157,7 @@ public class Serf extends PlayerButNoOverriddenMethods implements MiscConstants 
     public Path findPath(final int targetX, final int targetY, final PathFinder pathfinder) {
         try {
             Path path;
-            final PathFinder pf = /*(pathfinder != null) ? pathfinder : */new PathFinder();
+            final PathFinder pf = (pathfinder != null) ? pathfinder : new PathFinder();
             setPathfindcounter(getPathfindCounter() + 1);
             path = pf.findPath(this, getTileX(), getTileY(), targetX, targetY, isOnSurface(), 20);
             if (path != null && path.getSize() != 0) {
@@ -171,7 +171,9 @@ public class Serf extends PlayerButNoOverriddenMethods implements MiscConstants 
         }
         catch (NoPathException ignored) {
             if(!taskQueue.queue.isEmpty())
-                taskQueue.queue.get(0).finishTask("No path to target.");
+                //pathing is done in another thread so to avoid having to mess with synchronize
+                // just set a flag to finish next poll
+                taskQueue.queue.get(0).finishReason = "No path to target.";
         }
         return null;
     }
