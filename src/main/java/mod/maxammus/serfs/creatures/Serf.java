@@ -40,9 +40,7 @@ import java.lang.reflect.Method;
 import java.util.*;
 import java.util.logging.Logger;
 
-//Through use of reflection Serf actually extends Player during runtime
-//But doesn't use any of the methods Player overrode from Creature
-public class Serf extends Creature implements MiscConstants {
+public class Serf extends PlayerButNoOverriddenMethods implements MiscConstants {
     private static final Logger logger = Logger.getLogger(Serf.class.getName());
     public List<ActionEntry> lastAvailableActions = new ArrayList<>();
     public long ownerId = NOID;
@@ -159,7 +157,7 @@ public class Serf extends Creature implements MiscConstants {
     public Path findPath(final int targetX, final int targetY, final PathFinder pathfinder) {
         try {
             Path path;
-            final PathFinder pf = (pathfinder != null) ? pathfinder : new PathFinder();
+            final PathFinder pf = /*(pathfinder != null) ? pathfinder : */new PathFinder();
             setPathfindcounter(getPathfindCounter() + 1);
             path = pf.findPath(this, getTileX(), getTileY(), targetX, targetY, isOnSurface(), 20);
             if (path != null && path.getSize() != 0) {
@@ -171,7 +169,10 @@ public class Serf extends Creature implements MiscConstants {
                 return null;
             }
         }
-        catch (NoPathException ignored) { }
+        catch (NoPathException ignored) {
+            if(!taskQueue.queue.isEmpty())
+                taskQueue.queue.get(0).finishTask("No path to target.");
+        }
         return null;
     }
 
@@ -321,6 +322,7 @@ public class Serf extends Creature implements MiscConstants {
         }
         getStatus().setStunned(0.0f, false);
         trimAttackers(true);
+        log.clear();
         owner.getCommunicator().sendNormalServerMessage("You get the contract for " + getName() + "." );
         return true;
     }
