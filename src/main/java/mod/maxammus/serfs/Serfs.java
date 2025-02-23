@@ -258,9 +258,23 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
                 CtMethod playerMethod = newPlayerMethods.get(methodSignature);
                 //Turn method not final
                 playerMethod.setModifiers(playerMethod.getModifiers() & ~(Modifier.FINAL));
-                CtMethod dummyMethod = new CtMethod(playerMethod.getReturnType(), playerMethod.getName(), playerMethod.getParameterTypes(), dummyClass);
-                dummyMethod.setBody("throw new sun.reflect.generics.reflectiveObjects.NotImplementedException();");
-                dummyClass.addMethod(dummyMethod);
+//                CtMethod dummyMethod = new CtMethod(playerMethod.getReturnType(), playerMethod.getName(), playerMethod.getParameterTypes(), dummyClass);
+//                String access = "";
+//                if(Modifier.isPrivate(playerMethod.getModifiers())) access = "private ";
+//                if(Modifier.isProtected(playerMethod.getModifiers())) access = "protected ";
+//                if(Modifier.isPublic(playerMethod.getModifiers())) access = "public ";
+//                Map<String, Integer> paramCounts = new HashMap<>();
+//                String parameters = "";
+//                for(CtClass ctClass : playerMethod.getParameterTypes()){
+//                    String name = ctClass.getSimpleName() + " ";
+//                    int paramCount = paramCounts.getOrDefault(name, 0);
+//                    paramCounts.put(name, paramCount + 1);
+//                    parameters += name + name.substring(0, 2) + paramCount + ", ";
+//                }
+//                System.out.println(access + playerMethod.getReturnType().getSimpleName() + " " + playerMethod.getName() + "(" + parameters + ")" +
+//                        " { throw new NotImplementedException(); }");
+//                dummyMethod.setBody("");
+//                dummyClass.addMethod(dummyMethod);
             }
             for(int i = 0; i < playerOverriddenMethodsToPatch.size(); ++i) {
                 CtMethod playerMethod = playerOverriddenMethodsToPatch.get(i);
