@@ -66,7 +66,6 @@ public class SerfCommunicator extends Communicator {
     public void sendMessage(final Message message) { this.sendServerMessage(message.getMessage(), 255, 255, 255, (byte) 0); }
     public void sendSafeServerMessage(final String message) { this.sendServerMessage(message, 255, 255, 255, (byte) 0); }
     public void sendAlertServerMessage(final String message) { this.sendServerMessage(message, 255, 255, 255, (byte) 0); }
-
     public void disconnect() {}
     public void sendTeleport(final boolean aLocal) { this.sendTeleport(aLocal, true, (byte) 0);  }
     public boolean sendCloseInventoryWindow(final long inventoryWindow) { return true; }
