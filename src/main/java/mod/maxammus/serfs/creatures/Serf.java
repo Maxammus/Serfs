@@ -40,7 +40,8 @@ import java.lang.reflect.Method;
 import java.util.*;
 import java.util.logging.Logger;
 
-public class Serf extends PlayerButNoOverriddenMethods implements MiscConstants {
+//TODO: Set relevant hasFlags for serf
+public class Serf extends CustomPlayerClass implements MiscConstants {
     private static final Logger logger = Logger.getLogger(Serf.class.getName());
     public List<ActionEntry> lastAvailableActions = new ArrayList<>();
     public long ownerId = NOID;
@@ -65,6 +66,7 @@ public class Serf extends PlayerButNoOverriddenMethods implements MiscConstants 
     public Serf(CreatureTemplate aTemplate) throws Exception {
         super(aTemplate);
         communicator = new SerfCommunicator(this);
+        saveFile = new SerfInfo(name);
     }
 
     @SuppressWarnings("unused")
@@ -450,5 +452,16 @@ public class Serf extends PlayerButNoOverriddenMethods implements MiscConstants 
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    //TODO: check if anywhere this is used might be a problem
+    @Override
+    public boolean isPlayer() {
+        return true;
+    }
+
+    @Override
+    public boolean hasLink() {
+        return true;
     }
 }

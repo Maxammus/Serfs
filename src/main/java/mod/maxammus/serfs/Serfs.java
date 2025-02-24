@@ -58,7 +58,6 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
     public static List<CtMethod> playerOverriddenMethodsToPatch = new ArrayList<>(750);
     @Override
     public void configure(Properties properties) {
-        System.out.println("serf mod configure: ");
 
         try {
             startingSkillLevel = Float.parseFloat(properties.getProperty("startingSkillLevel", Float.toString(startingSkillLevel)));
@@ -217,7 +216,7 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
 
             logger.info("Making Serf class extend Player and patching any overridden methods to call their Creature versions.");
             CtClass serfClass = classPool.getCtClass("mod.maxammus.serfs.creatures.Serf");
-            CtClass dummyClass = classPool.getCtClass("mod.maxammus.serfs.creatures.PlayerButNoOverriddenMethods");
+            CtClass dummyClass = classPool.getCtClass("mod.maxammus.serfs.creatures.CustomPlayerClass");
             CtClass playerClass = classPool.getCtClass("com.wurmonline.server.players.Player");
             CtClass creatureClass = classPool.getCtClass(creature);
 
@@ -256,33 +255,15 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
             originalCreatureMethods = new MethodHandle[playerOverriddenMethodsToPatch.size()];
             for(String methodSignature : newPlayerMethods.keySet()) {
                 CtMethod playerMethod = newPlayerMethods.get(methodSignature);
-                //Turn method not final
-                playerMethod.setModifiers(playerMethod.getModifiers() & ~(Modifier.FINAL));
-//                CtMethod dummyMethod = new CtMethod(playerMethod.getReturnType(), playerMethod.getName(), playerMethod.getParameterTypes(), dummyClass);
-//                String access = "";
-//                if(Modifier.isPrivate(playerMethod.getModifiers())) access = "private ";
-//                if(Modifier.isProtected(playerMethod.getModifiers())) access = "protected ";
-//                if(Modifier.isPublic(playerMethod.getModifiers())) access = "public ";
-//                Map<String, Integer> paramCounts = new HashMap<>();
-//                String parameters = "";
-//                for(CtClass ctClass : playerMethod.getParameterTypes()){
-//                    String name = ctClass.getSimpleName() + " ";
-//                    int paramCount = paramCounts.getOrDefault(name, 0);
-//                    paramCounts.put(name, paramCount + 1);
-//                    parameters += name + name.substring(0, 2) + paramCount + ", ";
-//                }
-//                System.out.println(access + playerMethod.getReturnType().getSimpleName() + " " + playerMethod.getName() + "(" + parameters + ")" +
-//                        " { throw new NotImplementedException(); }");
-//                dummyMethod.setBody("");
-//                dummyClass.addMethod(dummyMethod);
+                //Turn method not final so CustomPlayerClass can override it
+                playerMethod.setModifiers(playerMethod.getModifiers() & ~Modifier.FINAL);
             }
             for(int i = 0; i < playerOverriddenMethodsToPatch.size(); ++i) {
                 CtMethod playerMethod = playerOverriddenMethodsToPatch.get(i);
                 String methodSignature = playerMethod.getName() + playerMethod.getSignature();
-                //Turn method not final
-                playerMethod.setModifiers(playerMethod.getModifiers() & ~(Modifier.FINAL));
+                //Turn method not final so CustomPlayerClass can override it
+                playerMethod.setModifiers(playerMethod.getModifiers() & ~Modifier.FINAL);
                 CtMethod dummyMethod = new CtMethod(playerMethod.getReturnType(), playerMethod.getName(), playerMethod.getParameterTypes(), dummyClass);
-                System.out.println(dummyMethod.getName());
 
                 if(dummyMethod.getParameterTypes().length > 0)
                     dummyMethod.setBody("return ($r) mod.maxammus.serfs.Serfs.originalCreatureMethods[" + i + "].bindTo(this).invokeWithArguments($args);");
