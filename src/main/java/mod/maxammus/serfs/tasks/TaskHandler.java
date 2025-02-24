@@ -14,7 +14,6 @@ import com.wurmonline.server.players.Player;
 import com.wurmonline.server.structures.NoSuchWallException;
 import mod.maxammus.serfs.Serfs;
 import mod.maxammus.serfs.creatures.Serf;
-import mod.maxammus.serfs.util.DBUtil;
 import mod.maxammus.serfs.util.ListUtil;
 import org.gotti.wurmunlimited.modsupport.ModSupportDb;
 
@@ -52,7 +51,7 @@ public class TaskHandler {
         final long start = System.nanoTime();
         int serfCount = 0;
         String tableName;
-        Map<Long, TaskHandler> serfQueues = new HashMap<>(Serf.serfCount);
+        Map<Long, TaskHandler> serfQueues = new HashMap<>(Serf.serfsLoaded);
         try (Connection dbcon = ModSupportDb.getModSupportDb();
              //combine the tables of queues with the same QUEUEID
              PreparedStatement ps = dbcon.prepareStatement("SELECT * FROM TaskQueues " +
@@ -85,8 +84,8 @@ public class TaskHandler {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        if (serfCount != Serf.serfCount)
-            logger.warning("Loaded " + serfCount + " queues for serfs from database.  " + Serf.serfCount + " serfs loaded from creature database!");
+        if (serfCount != Serf.serfsLoaded)
+            logger.warning("Loaded " + serfCount + " queues for serfs from database.  " + Serf.serfsLoaded + " serfs loaded from creature database!");
 
 
         tableName = "TaskProfiles";

@@ -49,7 +49,7 @@ public class Serf extends PlayerButNoOverriddenMethods implements MiscConstants 
     public int numItemsToTake;
     long nextActionTime = 0;
     public boolean failedToCarry = false;
-    public static int serfCount = 0;
+    public static int serfsLoaded = 0;
     private SerfInfo saveFile;
 
     public Deque<String> log = new ArrayDeque<String>() {
@@ -70,8 +70,8 @@ public class Serf extends PlayerButNoOverriddenMethods implements MiscConstants 
     @SuppressWarnings("unused")
     public Serf(long aId) throws Exception {
         super(aId);
-        saveFile = new SerfInfo("Serf");
-        serfCount++;
+        saveFile = new SerfInfo(name);
+        serfsLoaded++;
         communicator = new SerfCommunicator(this);
     }
 

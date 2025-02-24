@@ -69,6 +69,8 @@ public class SerfCommunicator extends Communicator {
     public void disconnect() {}
     public void sendTeleport(final boolean aLocal) { this.sendTeleport(aLocal, true, (byte) 0);  }
     public boolean sendCloseInventoryWindow(final long inventoryWindow) { return true; }
+
+    //Dummy methods
     public void sendUpdateInventoryItem(final Item item) {}
     public void sendRemoveFromInventory(final Item item) {}
     public void sendAddToInventory(final Item item, final long inventoryWindow, final long rootid, final int price) {}

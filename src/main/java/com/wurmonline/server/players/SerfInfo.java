@@ -4,8 +4,7 @@ import com.wurmonline.server.steam.SteamId;
 import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 
-//Empty PlayerInfo class.  Probably not needed since all Player methods that would use this
-//should have been reflected away
+//Gives serf a PlayerInfo field.  No saving to db.  Any relevant fields should point to Creature when available.
 public class SerfInfo extends PlayerInfo {
 
     public SerfInfo(String aname) {
