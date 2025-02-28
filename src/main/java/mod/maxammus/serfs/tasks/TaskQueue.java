@@ -94,7 +94,7 @@ public class TaskQueue {
     }
 
     public String getIdentity() {
-        return "Serf: " + name;
+        return name;
     }
 
     public void stop(int id) {

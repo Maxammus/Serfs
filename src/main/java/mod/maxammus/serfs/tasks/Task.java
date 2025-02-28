@@ -410,6 +410,7 @@ public class Task implements CounterTypes {
                     finishTask("Target creature no longer exists.");
             }
 //            if(assigned.getPos2f().distance(getXYWithinTaskRange()) < .1) {
+//            if(assigned.getPos2f().distance(getXYWithinTaskRange()) < .1) {
             if(isAssignedInRange()) {
                 if(!started)
                     startTask();
@@ -434,7 +435,7 @@ public class Task implements CounterTypes {
 
     private boolean isAssignedInRange() {
         float range = action < Actions.actionEntrys.length ? Actions.actionEntrys[action].getRange() : 8f;
-        if(WurmId.getType(target) == 17) {
+        if(WurmId.getType(target) == COUNTER_TYPE_CAVETILES) {
             int tilex = Tiles.decodeTileX(target);
             int tiley = Tiles.decodeTileY(target);
             final MeshIO mesh2 = Server.caveMesh;
@@ -759,6 +760,7 @@ public class Task implements CounterTypes {
         Vector2f heading = pos2f.subtract(assigned.getPos2f());
         if(isTileTask()) {
             if(WurmId.getType(target) == CounterTypes.COUNTER_TYPE_CAVETILES) {
+                pos = pos.add(2, 2, 0);
                 int tilex = Tiles.decodeTileX(target);
                 int tiley = Tiles.decodeTileY(target);
                 final MeshIO mesh = Server.caveMesh;
@@ -829,7 +831,7 @@ public class Task implements CounterTypes {
     }
 
     public void setTakeContainer(Item takeContainerId) {
-        this.takeContainerId = takeContainerId != null ? takeContainerId.getWurmId() : -10;
+        this.takeContainerId = takeContainerId != null ? takeContainerId.getWurmId() : NOID;
     }
 
     public Item getDropContainer() {
@@ -837,7 +839,7 @@ public class Task implements CounterTypes {
     }
 
     public void setDropContainer(Item dropContainerId) {
-        this.dropContainerId = dropContainerId != null ? dropContainerId.getWurmId() : -10;
+        this.dropContainerId = dropContainerId != null ? dropContainerId.getWurmId() : NOID;
     }
 
     public boolean checkAndRepairItem(Item tool) {
@@ -845,7 +847,7 @@ public class Task implements CounterTypes {
             return false;
         if (tool.getDamage() > 10.0f && tool.isRepairable()) {
             try {
-                BehaviourDispatcher.action(assigned, assigned.getCommunicator(), -10L, tool.getWurmId(), REPAIR);
+                BehaviourDispatcher.action(assigned, assigned.getCommunicator(), NOID, tool.getWurmId(), REPAIR);
                 return true;
             } catch (Exception e) {
                 logger.warning("Exception when trying to repair serf tool - " + e.getMessage());

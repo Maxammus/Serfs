@@ -1,19 +1,18 @@
 package mod.maxammus.serfs.actions;
 
-import com.wurmonline.server.Items;
+import com.wurmonline.server.*;
 import com.wurmonline.server.behaviours.Action;
 import com.wurmonline.server.behaviours.ActionEntry;
-import com.wurmonline.server.behaviours.AutoEquipMethods;
 import com.wurmonline.server.creatures.Creature;
-import com.wurmonline.server.creatures.Creatures;
 import com.wurmonline.server.items.Item;
 import com.wurmonline.server.players.Player;
-import com.wurmonline.server.villages.NoSuchRoleException;
-import com.wurmonline.server.villages.VillageRole;
+import com.wurmonline.server.players.PlayerInfo;
+import com.wurmonline.server.players.PlayerInfoFactory;
 import mod.maxammus.serfs.Serfs;
+import mod.maxammus.serfs.creatures.CustomPlayerClass;
 import mod.maxammus.serfs.creatures.Serf;
-import mod.maxammus.serfs.creatures.SerfTemplate;
 import mod.maxammus.serfs.items.SerfContract;
+import mod.maxammus.serfs.questions.SerfContractQuestion;
 import mod.maxammus.serfs.tasks.TaskHandler;
 import org.gotti.wurmunlimited.modsupport.actions.ActionPerformer;
 import org.gotti.wurmunlimited.modsupport.actions.BehaviourProvider;
@@ -85,32 +84,25 @@ public class ContractAction implements ModAction {
                         performer.getCommunicator().sendNormalServerMessage("You cannot handle managing any more serfs at one time.");
                         return true;
                     }
-                    Serf serf;
                     try {
-                        serf = (Serf) Creatures.getInstance().getCreatureOrNull(target.getData());
-                        if(serf != null)
-                            serf.spawnFromContract(performer);
-                        else if(target.getData() == -1) {
-                            serf = (Serf) Creature.doNew(SerfTemplate.templateId,
-                                    performer.getPosX(), performer.getPosY(), performer.getStatus().getRotation(),
-                                    performer.getLayer(), "Serf", (byte) 0);
-                            //DoNew does an auto equip so undo that
-                            for (final Item equipment : serf.getBody().getContainersAndWornItems())
-                                    AutoEquipMethods.unequip(equipment, serf);
-                        }
+                        if(target.getData() == -1)
+                            SerfContractQuestion.create(performer, target.getWurmId(), true);
                         else {
-                            performer.getCommunicator().sendNormalServerMessage("Serf id " + target.getData() + " not found in creature list");
-                            return true;
+                            String name = target.getDescription();
+                            final PlayerInfo file = PlayerInfoFactory.createPlayerInfo(name);
+                            try {
+                                file.load();
+                            } catch (IOException ignored) { }
+                            if(file.wurmId != target.getData()) {
+                                logger.warning(String.format("Error calling serf %d", target.getData()));
+                                performer.getCommunicator().sendNormalServerMessage("Error calling serf.");
+                                return true;
+                            }
+                            CustomPlayerClass.doLogIn(name);
+                            Serf serf = (Serf)(Creature)Players.getInstance().getPlayerOrNull(name);
+                            serf.calledBy(performer);
+                            Items.destroyItem(target.getWurmId());
                         }
-                        serf.setupQueue(performer.getWurmId());
-                        performer.getCommunicator().sendNormalServerMessage("You call " + serf.getName());
-                        Items.destroyItem(target.getWurmId());
-                        try {
-                            //TODO: Check if this is the right role.
-                            VillageRole role =  performer.getCitizenVillage().getRoleForStatus((byte) 3);
-                            //TODO: change serf village when owner changes?
-                            performer.getCitizenVillage().addCitizen(serf, role);
-                        } catch (NoSuchRoleException | IOException ignored) { }
 
                     } catch (ClassCastException e) {
                         logger.warning("Serf contract has non-serf id stored somehow.");

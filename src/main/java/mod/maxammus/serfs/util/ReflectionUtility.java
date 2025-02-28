@@ -25,9 +25,9 @@ public class ReflectionUtility {
         ctMethod.instrument(exprEditor);
     }
 
-    public static void replaceNewCall(String className, String methodName, String desc, String target, String replace) throws NotFoundException, CannotCompileException {
+    public static void replaceNewCall(String className, String methodName, String desc, String target, String targetDesc, String replace) throws NotFoundException, CannotCompileException {
         CtMethod ctMethod = getMethod(className, methodName, desc);
-        ExprEditor exprEditor = getNewCallReplacer(target, replace);
+        ExprEditor exprEditor = getNewCallReplacer(target, targetDesc, replace);
         ctMethod.instrument(exprEditor);
     }
     public static void replaceFieldAccess(String className, String methodName, String desc, String target, String replace) throws NotFoundException, CannotCompileException {
@@ -38,18 +38,20 @@ public class ReflectionUtility {
 
     private static CtMethod getMethod(String className, String methodName, String desc) throws NotFoundException {
         CtMethod ctMethod;
-        if(desc.equals(""))
+        if(desc == null)
             ctMethod = classPool.getMethod(className, methodName);
         else
             ctMethod = classPool.getCtClass(className).getMethod(methodName, desc);
         return ctMethod;
     }
 
-    public static ExprEditor getNewCallReplacer(String target, String replace) {
+    public static ExprEditor getNewCallReplacer(String target, String desc, String replace) {
         return new ExprEditor() {
             @Override
             public void edit(NewExpr c) throws CannotCompileException {
-                if (c.getClassName().equals(target))
+                //manually get the simple name of c
+                if (c.getClassName().substring(c.getClassName().lastIndexOf('.') + 1).equals(target)
+                        && (desc == null || c.getSignature().equals(desc)))
                     c.replace(replace);
             }
         };

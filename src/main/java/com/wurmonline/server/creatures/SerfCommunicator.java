@@ -1,23 +1,38 @@
 package com.wurmonline.server.creatures;
 
+import com.wurmonline.communication.SocketConnection;
 import com.wurmonline.server.Message;
 import com.wurmonline.server.NoSuchPlayerException;
 import com.wurmonline.server.Players;
+import com.wurmonline.server.Server;
 import com.wurmonline.server.behaviours.ActionEntry;
 import com.wurmonline.server.bodys.Wound;
+import com.wurmonline.server.epic.ValreiMapData;
+import com.wurmonline.server.intra.IntraServerConnection;
 import com.wurmonline.server.items.Item;
+import com.wurmonline.server.players.Achievements;
 import com.wurmonline.server.players.Player;
+import com.wurmonline.server.players.Titles;
 import com.wurmonline.server.questions.Questions;
 import com.wurmonline.server.questions.RemoveItemQuestion;
+import com.wurmonline.server.questions.SelectSpawnQuestion;
 import com.wurmonline.server.sounds.Sound;
 import com.wurmonline.server.structures.Door;
 import com.wurmonline.server.structures.Fence;
 import com.wurmonline.server.structures.Wall;
+import com.wurmonline.server.tutorial.PlayerTutorial;
 import com.wurmonline.server.zones.VolaTile;
+import com.wurmonline.shared.constants.PlayerOnlineStatus;
 import mod.maxammus.serfs.creatures.Serf;
 import mod.maxammus.serfs.questions.SerfQuestionQuestion;
+import mod.maxammus.serfs.util.ReflectionUtility;
+import mod.maxammus.serfs.workarounds.DummySocketConnection;
+import org.gotti.wurmunlimited.modloader.ReflectionUtil;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Properties;
 import java.util.logging.Logger;
@@ -26,8 +41,10 @@ public class SerfCommunicator extends Communicator {
     private final Logger logger = Logger.getLogger(this.getClass().getName());
     public Serf serf;
 
-    public SerfCommunicator(final Creature serf) {
-        this.serf = (Serf) serf;
+    public SerfCommunicator(Player serf, SocketConnection connection) {
+        super((Player)serf, connection);
+        this.serf = (Serf)(Creature) serf;
+        setInvulnerable(false);
     }
 
     @Override
@@ -39,7 +56,7 @@ public class SerfCommunicator extends Communicator {
     public void sendBml(short id, int width, int height, float xLoc, float yLoc, boolean resizeable, boolean closeable, String content, int r, int g, int b, String title) {
         Properties properties = new Properties();
         //Handle specific questions
-        if(serf.question instanceof RemoveItemQuestion) {
+        if(player.question instanceof RemoveItemQuestion) {
 
             properties.put("numstext", Integer.toString(serf.numItemsToTake));
             properties.put("items", "None");
@@ -48,29 +65,47 @@ public class SerfCommunicator extends Communicator {
             serf.question = null;
             return;
         }
+        else if(player.question instanceof SelectSpawnQuestion) {
+            Players.getInstance().sendConnectInfo(player, " has logged in.", player.getLastLogin(), PlayerOnlineStatus.ONLINE, true);
+            Players.getInstance().addToGroups(player);
+            Server.getInstance().startSendingFinals(player);
+            player.setSex((byte)Server.rand.nextInt(2), false);
+            player.getCommunicator().sendMapInfo();
+            Achievements.sendAchievementList(player);
+            Players.loadAllPrivatePOIForPlayer(player);
+            player.sendAllMapAnnotations();
+            ValreiMapData.sendAllMapData(player);
+            player.resetLastSentToolbelt();
+            //Skip tutorial
+            player.addTitle(Titles.Title.Educated);
+            return;
+        }
         //Send the rest to the player
-        try {
-            Player owner = Players.getInstance().getPlayer(serf.ownerId);
+        Player owner = Players.getInstance().getPlayerOrNull(serf.ownerId);
+        if(owner != null)
             SerfQuestionQuestion.create(owner, serf.getWurmId(), width, height, xLoc, yLoc, resizeable, content, r, g, b);
-        } catch (NoSuchPlayerException ignored) { }
     }
 
     @Override
     public void sendServerMessage(final String message, final int r, final int g, final int b, final byte messageType) {
-        serf.log.add(message);
+        //Messages are sent during Player construction before log is initialized
+        try {
+            serf.log.add(message);
+        } catch (NullPointerException ignored) {}
     }
 
     public void sendServerMessage(final String message, final int r, final int g, final int b) { sendServerMessage(message, r, g, b, (byte)0); }
     public void sendNormalServerMessage(final String message) { sendServerMessage(message, 255, 255, 255); }
     public void sendNormalServerMessage(final String message, final byte messageType) { this.sendServerMessage(message, 255, 255, 255, messageType); }
-    public void sendMessage(final Message message) { this.sendServerMessage(message.getMessage(), 255, 255, 255, (byte) 0); }
     public void sendSafeServerMessage(final String message) { this.sendServerMessage(message, 255, 255, 255, (byte) 0); }
     public void sendAlertServerMessage(final String message) { this.sendServerMessage(message, 255, 255, 255, (byte) 0); }
     public void disconnect() {}
-    public void sendTeleport(final boolean aLocal) { this.sendTeleport(aLocal, true, (byte) 0);  }
+    public void sendTeleport(final boolean aLocal) { serf.handleTeleport(); }
+    public void sendTeleport(final boolean aLocal, final boolean disembark, final byte commandType) { serf.handleTeleport(); }
     public boolean sendCloseInventoryWindow(final long inventoryWindow) { return true; }
 
     //Dummy methods
+    public void sendMessage(final Message message) { }
     public void sendUpdateInventoryItem(final Item item) {}
     public void sendRemoveFromInventory(final Item item) {}
     public void sendAddToInventory(final Item item, final long inventoryWindow, final long rootid, final int price) {}
@@ -108,7 +143,6 @@ public class SerfCommunicator extends Communicator {
     public void sendOpenDoor(final Door door) {}
     public void sendCloseDoor(final Door door) {}
     public void sendChangeStructureName(final long structureId, final String newName) {}
-    public void sendTeleport(final boolean aLocal, final boolean disembark, final byte commandType) {}
     public void sendOpenInventoryWindow(final long inventoryWindow, final String title) {}
     public void sendAddFence(final Fence fence) {}
     public void sendRemoveFence(final Fence fence) {}

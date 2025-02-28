@@ -1,5 +1,6 @@
 package mod.maxammus.serfs.questions;
 
+import com.wurmonline.server.Players;
 import com.wurmonline.server.creatures.Creature;
 import com.wurmonline.server.creatures.Creatures;
 import com.wurmonline.server.items.Item;
@@ -20,6 +21,7 @@ import java.util.*;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
+import static com.wurmonline.server.MiscConstants.NOID;
 import static com.wurmonline.server.utils.BMLBuilder.*;
 import static mod.maxammus.serfs.util.BMLUtil.openBracket;
 
@@ -279,7 +281,7 @@ public class ManageSerfQuestion implements ModQuestion {
                 } else if (key.startsWith("getContract.")) {
                     Serf serf;
                     try {
-                        serf = (Serf) Creatures.getInstance().getCreatureOrNull(Long.parseLong(id));
+                        serf = (Serf) (Creature) Players.getInstance().getPlayerOrNull(Long.parseLong(id));
                         if (serf != null) {
                             if (serf.ownerId != responder.getWurmId())
                                 logger.severe(responder.getName() + " tried to get the contract of someone else's serf!");
@@ -323,20 +325,20 @@ public class ManageSerfQuestion implements ModQuestion {
             //Not ground (0) or anything after container groups in the dropdown
             if(dropdownIndex != 0 && dropdownIndex <= groups) {
                 profile.setTakeContainerGroup(containerDropdown.get(dropdownIndex));
-                profile.takeContainerId = -10;
+                profile.takeContainerId = NOID;
             }
             else {
                 profile.setTakeContainerGroup("");
-                profile.takeContainerId = ListUtil.getOrDefault(profile.getSelectedQueue().containers, dropdownIndex - groups - 1, -10L);
+                profile.takeContainerId = ListUtil.getOrDefault(profile.getSelectedQueue().containers, dropdownIndex - groups - 1, NOID);
             }
             dropdownIndex = Integer.parseInt(answers.getProperty("dropContainer." + index));
             if(dropdownIndex != 0 && dropdownIndex <= groups) {
                 profile.setDropContainerGroup(containerDropdown.get(dropdownIndex));
-                profile.dropContainerId = -10;
+                profile.dropContainerId = NOID;
             }
             else {
                 profile.setDropContainerGroup("");
-                profile.dropContainerId = ListUtil.getOrDefault(profile.getSelectedQueue().containers, dropdownIndex - groups - 1, -10L);
+                profile.dropContainerId = ListUtil.getOrDefault(profile.getSelectedQueue().containers, dropdownIndex - groups - 1, NOID);
             }
             profile.setRepeat(Integer.parseInt(answers.getProperty("repeatNum." + index)));
             profile.setWhileTimerShows(Boolean.parseBoolean(answers.getProperty("whileTimerShows." + index)));
@@ -344,8 +346,8 @@ public class ManageSerfQuestion implements ModQuestion {
             profile.setReAdd(Boolean.parseBoolean(answers.getProperty("addToBottom." + index)));
         }
         else {
-            profile.takeContainerId = -10;
-            profile.dropContainerId = -10;
+            profile.takeContainerId = NOID;
+            profile.dropContainerId = NOID;
             profile.setTakeContainerGroup("");
             profile.setDropContainerGroup("");
             profile.setActiveItemTemplate(null);

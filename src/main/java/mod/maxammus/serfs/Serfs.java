@@ -1,10 +1,12 @@
 package mod.maxammus.serfs;
 
 import com.wurmonline.server.Items;
+import com.wurmonline.server.Players;
 import com.wurmonline.server.Server;
 import com.wurmonline.server.creatures.Communicator;
 import com.wurmonline.server.creatures.Creature;
 import com.wurmonline.server.items.Item;
+import com.wurmonline.server.players.Player;
 import javassist.*;
 import javassist.bytecode.*;
 import javassist.expr.ExprEditor;
@@ -13,14 +15,18 @@ import mod.maxammus.serfs.actions.AddContainerToQueueAction;
 import mod.maxammus.serfs.actions.ContractAction;
 import mod.maxammus.serfs.actions.DropAllNonToolItems;
 import mod.maxammus.serfs.actions.ManagerAction;
+import mod.maxammus.serfs.creatures.CustomPlayerClass;
 import mod.maxammus.serfs.creatures.Serf;
 import mod.maxammus.serfs.creatures.SerfTemplate;
 import mod.maxammus.serfs.items.SerfContract;
 import mod.maxammus.serfs.items.SerfInstructor;
 import mod.maxammus.serfs.tasks.TaskHandler;
 import mod.maxammus.serfs.tasks.TaskProfile;
+import mod.maxammus.serfs.tasks.TaskQueue;
 import mod.maxammus.serfs.util.DBUtil;
 import mod.maxammus.serfs.util.ReflectionUtility;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.gotti.wurmunlimited.modloader.classhooks.HookManager;
 import org.gotti.wurmunlimited.modloader.interfaces.*;
 import org.gotti.wurmunlimited.modsupport.actions.ModActions;
@@ -37,15 +43,17 @@ import static mod.maxammus.serfs.tasks.TaskHandler.requestSerfActions;
 //TODO: make hatchet a tool (type 38)
 //TODO: Current pathfinding only checks tile position, not layer.  Make cross-layer pathfinder
 //TODO: Check for world edge bugs in TaskArea etc
-public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable, ServerStartedListener, ItemTemplatesCreatedListener, ServerPollListener {
+public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable, ServerStartedListener, ItemTemplatesCreatedListener, ServerPollListener, PlayerLoginListener {
     private static final Logger logger = Logger.getLogger(Serfs.class.getName());
+    private static final Log log = LogFactory.getLog(Serfs.class);
     private final String version = "0.0.1";
     public static float startingSkillLevel = -1;
     public static int maxActiveSerfs = -1;
     public static int serfContractPrice = 50000;
     public static int maxAreaSize = 100;
     public static boolean tradeableSerfs = false;
-    private static boolean addToTraders;
+    private static boolean addToTraders = true;
+    public static boolean alwaysOn = false;
     public static List<Short> whitelist = new ArrayList<>();
     public static List<Short> blacklist = new ArrayList<>();
     public static List<Short> autoDropWhenCannotCarryActions = new ArrayList<>();
@@ -66,6 +74,7 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
             maxAreaSize = Integer.parseInt(properties.getProperty("maxAreaSize", Integer.toString(maxAreaSize)));
             tradeableSerfs = Boolean.parseBoolean(properties.getProperty("tradeableSerfs", Boolean.toString(tradeableSerfs)));
             addToTraders = Boolean.parseBoolean(properties.getProperty("addToTraders", Boolean.toString(addToTraders)));
+            alwaysOn = Boolean.parseBoolean(properties.getProperty("alwaysOn", Boolean.toString(alwaysOn)));
             for(String s : properties.getProperty("whitelist", "").split(","))
                 if (!s.isEmpty()) whitelist.add(Short.parseShort(s));
             for(String s : properties.getProperty("blacklist", "").split(","))
@@ -79,6 +88,7 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
             logger.info("maxAreaSize: " + maxAreaSize);
             logger.info("tradeableSerfs: " + tradeableSerfs);
             logger.info("addToTraders: " + addToTraders);
+            logger.info("alwaysOn: " + alwaysOn);
             logger.info("whitelist: " + whitelist);
             logger.info("blacklist: " + blacklist);
             logger.info("autoDropWhenCannotCarryActions: " + autoDropWhenCannotCarryActions);
@@ -108,99 +118,14 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
             logger.info("Editing reallyHandle_CMD_ACTION to intercept actions to be sent to serfs");
             editSerfInstructionAction();
 
-            String creatures = "com.wurmonline.server.creatures.Creatures";
-            String creature = "com.wurmonline.server.creatures.Creature";
-            String communicator = "com.wurmonline.server.creatures.Communicator";
-            logger.info("Making creatures with Serf template create Serfs instead of Creature when loading from database");
-            ReflectionUtility.replaceNewCall(creatures, "loadAllCreatures", "", creature, "" +
-                    "if(templateName.equalsIgnoreCase(mod.maxammus.serfs.creatures.SerfTemplate.name)) {" +
-                    "   $_ = new mod.maxammus.serfs.creatures.Serf(rs.getLong(\"WURMID\"));" +
-                    "}" +
-                    "else $_ = $proceed($$);");
-
-            logger.info("Making creatures with Serf template create Serfs instead of Creature when calling doNew");
-            ReflectionUtility.replaceNewCall(creature, "doNew", "(IZFFFILjava/lang/String;BBBZBI)Lcom/wurmonline/server/creatures/Creature;", creature, "" +
-                    "if (templateid == mod.maxammus.serfs.creatures.SerfTemplate.templateId) {" +
-                    "   $_ = new mod.maxammus.serfs.creatures.Serf($$);" +
-                    "}" +
-                    "else $_ = $proceed($$);");
-
-            logger.info("Changing some argument in sendNewCreature to make the client render serf model correctly");
-            ReflectionUtility.replaceMethodCall("com.wurmonline.server.zones.VirtualZone","addCreature", "(JZJFFF)Z","sendNewCreature","" +
-                    "$18 = $18 || creature.getTemplateId() == mod.maxammus.serfs.creatures.SerfTemplate.templateId;" +
-                    "$proceed($$);");
-
-            logger.info("Changing temp skills to work with serfs, and possibly used configured starting level");
+            logger.info("Changing temp skills to use configured starting level");
             String initialTempValue = "initialTempValue = mod.maxammus.serfs.Serfs.startingSkillLevel;";
             if(startingSkillLevel > 0)
                 initialTempValue = "initialTempValue = " + startingSkillLevel + ";";
             classPool.getMethod("com.wurmonline.server.skills.Skills", "addTempSkills")
                     .insertAt(755, "" +
-                            "if(com.wurmonline.server.creatures.Creatures.getInstance().getCreatureOrNull(id) instanceof mod.maxammus.serfs.creatures.Serf) " +
+                            "if(com.wurmonline.server.Players.getInstance().getPlayerOrNull(id) instanceof mod.maxammus.serfs.creatures.Serf) " +
                             initialTempValue);
-
-            logger.info("Replacing Communicator.player field with SerfCommunicator.serf for serfs in multiple methods");
-            String replacePlayer = "" +
-                    "if(this instanceof com.wurmonline.server.creatures.SerfCommunicator)" +
-                    "   $_ = ((com.wurmonline.server.creatures.SerfCommunicator)this).serf;" +
-                    "else $_ = $proceed();";
-            ReflectionUtility.replaceFieldAccess(communicator, "reallyHandle_CMD_MOVE_INVENTORY", "", "player", replacePlayer);
-            ReflectionUtility.replaceFieldAccess(communicator, "reallyHandle_CMD_REQUEST_ACTIONS", "", "player", replacePlayer);
-            ReflectionUtility.replaceFieldAccess(communicator, "setInvulnerable", "", "player", replacePlayer);
-
-            CtClass communicatorClass = classPool.getCtClass(communicator);
-            //For interacting with inventories
-            ReflectionUtility.replacePlayerWithCreatureInMethod(communicatorClass, "reallyHandle_CMD_MOVE_INVENTORY");
-            //For getting right click menu actions
-            ReflectionUtility.replacePlayerWithCreatureInMethod(communicatorClass, "reallyHandle_CMD_REQUEST_ACTIONS");
-            ReflectionUtility.replacePlayerWithCreatureInMethod(communicatorClass, "setInvulnerable");
-
-            //needed to move items into an inventory
-            ExprEditor isPlayerOrSerf = ReflectionUtility.getMethodCallReplacer("isPlayer",
-                    "$_ = $proceed($$) || $0 instanceof mod.maxammus.serfs.creatures.Serf;");
-
-            logger.info("Allowing Serfs to move items (into their inventory?)");
-            classPool.getMethod(communicator, "equipCreatureCheck")
-                    .instrument(isPlayerOrSerf);
-            classPool.getMethod(communicator, "creatureWearableRestrictions")
-                    .instrument(isPlayerOrSerf);
-
-            logger.info("Giving serfs a real inventory");
-            CtClass possessions = classPool.get("com.wurmonline.server.items.Possessions");
-            for(CtConstructor ctConstructor : possessions.getConstructors())
-                ctConstructor.instrument(isPlayerOrSerf);
-
-            //also avoids an exception from attempting to cast Serf to Player
-            logger.info("Allowing Serfs to handle questions");
-            classPool.getMethod("com.wurmonline.server.questions.Questions", "addQuestion")
-                    .insertBefore("" +
-                            "if(question.getResponder() instanceof mod.maxammus.serfs.creatures.Serf) {" +
-                            "    mod.maxammus.serfs.creatures.Serf serf = (mod.maxammus.serfs.creatures.Serf)question.getResponder();" +
-                            "    if (serf.question != null)" +
-                            "        serf.question.timedOut();" +
-                            "    serf.question = question;" +
-                            "    return;" +
-                            "}");
-
-            //Makes moved call movementScheme.move which moves dragged carts along with the serf
-            //also needed to move visionArea around which sounds important, idk.
-            logger.info("Making carts move when being dragged by serfs");
-            ReflectionUtility.replaceMethodCall(creature, "moved", "", "isWagoner",
-                            "$_ = $proceed($$) || $0 instanceof mod.maxammus.serfs.creatures.Serf;");
-
-//            //Modify a check to let serfs stay offline
-//            ReflectionUtility.replaceMethodCall(creatures, "pollOfflineCreatures", "", "add","" +
-//                    "if(offline instanceof mod.maxammus.serfs.creatures.Serf)" +
-//                    "   $_ = true;" +
-//                    "else $_ = $proceed($$);");
-
-            logger.info("Making tools show when being used by a serf");
-            ExprEditor getType = ReflectionUtility.getMethodCallReplacer("getType", "" +
-                    "if(com.wurmonline.server.creatures.Creatures.getInstance().getCreatureOrNull(creatureId) instanceof mod.maxammus.serfs.creatures.Serf)" +
-                    "    $_ = 0;" +
-                    "else $_ = $proceed($$);");
-            communicatorClass.getMethod("sendUseItem", "(JLjava/lang/String;BIIIIII)V")
-                    .instrument(getType);
 
             if(addToTraders) {
                 logger.info("Adding serf contracts to traders.");
@@ -215,66 +140,87 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
 
 
             logger.info("Making Serf class extend Player and patching any overridden methods to call their Creature versions.");
-            CtClass serfClass = classPool.getCtClass("mod.maxammus.serfs.creatures.Serf");
-            CtClass dummyClass = classPool.getCtClass("mod.maxammus.serfs.creatures.CustomPlayerClass");
+            makeSerfExtendPlayer();
+
+            logger.info("Setting up constructors for DummySocketConnection");
+            //Add empty () constructor in SocketConnection for DummySocketConnection to use
+            CtClass socketConnectionClass = classPool.getCtClass("com.wurmonline.communication.SocketConnection");
+            CtConstructor socketConnectionConstructor = new CtConstructor(null, socketConnectionClass);
+            socketConnectionConstructor.setBody("{}");
+            socketConnectionClass.addConstructor(socketConnectionConstructor);
+
+            CtClass dummySocketConnectionClass = classPool.getCtClass("mod.maxammus.serfs.workarounds.DummySocketConnection");
+            dummySocketConnectionClass.getDeclaredConstructors()[0].setBody(
+                    "{ super();" +
+                            "byteBuffer = java.nio.ByteBuffer.allocate(65534);" +
+                            "encryptRandom = new java.util.Random(105773331L);" +
+                            "decryptRandom = new java.util.Random(105773331L);}");
+
+            //Might not be needed but seems good to do
+            logger.info("Making SteamHandler.EndAuthSession() ignore serfs");
+            classPool.getMethod("com.wurmonline.server.steam.SteamHandler", "EndAuthSession")
+                    .insertBefore("if($1.equals(\"0\")) return;");
+
+            logger.info("Allowing the \"Serf \" prefix to pass name checks");
+            ReflectionUtility.replaceMethodCall("com.wurmonline.server.LoginHandler", "handleLogin", null, "checkName",
+                    "$_ = steamIDAsString.equals(\"0\") || $proceed($$);");
+
+            logger.info("Creating Serf instead of Player when a serf logs in");
+            ReflectionUtility.replaceNewCall("com.wurmonline.server.LoginHandler", "handleLogin", null, "Player", null,
+                    "if(steamIDAsString.equals(\"0\")) $_ = new mod.maxammus.serfs.creatures.Serf($$); else $_ = $proceed($$);");
+            ReflectionUtility.replaceMethodCall("com.wurmonline.server.LoginHandler", "handleLogin", null, "doNewPlayer",
+                    "if(steamIDAsString.equals(\"0\")) $_ = new mod.maxammus.serfs.creatures.Serf($$); else $_ = $proceed($$);");
+
             CtClass playerClass = classPool.getCtClass("com.wurmonline.server.players.Player");
-            CtClass creatureClass = classPool.getCtClass(creature);
-
-            //Add constructors Player is missing
-            CtClass lng = classPool.getCtClass("long");
-            CtClass template = classPool.getCtClass("com.wurmonline.server.creatures.CreatureTemplate");
-            CtConstructor jv = new CtConstructor(new CtClass[]{lng}, playerClass);
-            CtConstructor ctv = new CtConstructor(new CtClass[]{template}, playerClass);
-            CtConstructor v = new CtConstructor(new CtClass[]{}, playerClass);
-            jv.setBody("super($1);");
-            ctv.setBody("super($1);");
-            v.setBody("super();");
-            playerClass.addConstructor(jv);
-            playerClass.addConstructor(ctv);
-            playerClass.addConstructor(v);
-
-            playerClass.setModifiers(playerClass.getModifiers() ^ Modifier.FINAL);
-            dummyClass.setSuperclass(playerClass);
-
-
-            //Return all Creature methods that Player overrides back to the Creature method
-            Map<String, CtMethod> creatureMethods = new HashMap<>(1250);
-            Map<String, CtMethod> newPlayerMethods = new HashMap<>(750);
-            for(CtMethod ctMethod : creatureClass.getDeclaredMethods())
-                creatureMethods.put(ctMethod.getName() + ctMethod.getSignature(), ctMethod);
-            for(CtMethod ctMethod : playerClass.getDeclaredMethods())
-                if(creatureMethods.containsKey(ctMethod.getName() + ctMethod.getSignature()))
-                    playerOverriddenMethodsToPatch.add(ctMethod);
-                else
-                    newPlayerMethods.put(ctMethod.getName() + ctMethod.getSignature(), ctMethod);
-
-            //Remove any methods  serf already has
-            for(CtMethod ctMethod : dummyClass.getDeclaredMethods())
-                playerOverriddenMethodsToPatch.remove(ctMethod);
-
-            originalCreatureMethods = new MethodHandle[playerOverriddenMethodsToPatch.size()];
-            for(String methodSignature : newPlayerMethods.keySet()) {
-                CtMethod playerMethod = newPlayerMethods.get(methodSignature);
-                //Turn method not final so CustomPlayerClass can override it
-                playerMethod.setModifiers(playerMethod.getModifiers() & ~Modifier.FINAL);
+            logger.info("Giving serfs SerfCommunicators during Player constructor");
+            for(CtConstructor ctConstructor : playerClass.getDeclaredConstructors()) {
+                ctConstructor.instrument(ReflectionUtility.getNewCallReplacer("PlayerCommunicator", null,"if(this instanceof mod.maxammus.serfs.creatures.Serf) $_ = new com.wurmonline.server.creatures.SerfCommunicator($$); else $_ = $proceed($$);") );
+                ctConstructor.instrument(ReflectionUtility.getNewCallReplacer("PlayerCommunicatorQueued", null, "if(this instanceof mod.maxammus.serfs.creatures.Serf) $_ = new com.wurmonline.server.creatures.SerfCommunicator($$); else $_ = $proceed($$);") );
             }
-            for(int i = 0; i < playerOverriddenMethodsToPatch.size(); ++i) {
-                CtMethod playerMethod = playerOverriddenMethodsToPatch.get(i);
-                String methodSignature = playerMethod.getName() + playerMethod.getSignature();
-                //Turn method not final so CustomPlayerClass can override it
-                playerMethod.setModifiers(playerMethod.getModifiers() & ~Modifier.FINAL);
-                CtMethod dummyMethod = new CtMethod(playerMethod.getReturnType(), playerMethod.getName(), playerMethod.getParameterTypes(), dummyClass);
 
-                if(dummyMethod.getParameterTypes().length > 0)
-                    dummyMethod.setBody("return ($r) mod.maxammus.serfs.Serfs.originalCreatureMethods[" + i + "].bindTo(this).invokeWithArguments($args);");
-                else
-                    dummyMethod.setBody("return ($r) mod.maxammus.serfs.Serfs.originalCreatureMethods[" + i + "].invokeWithArguments(new Object[] { this });");
+            logger.info("Removing serfs from player count");
+            classPool.getMethod("com.wurmonline.server.Players", "numberOfPlayers")
+                    .insertAfter("$_ -= mod.maxammus.serfs.creatures.Serf.numSerfsOnline();");
+            classPool.getMethod("com.wurmonline.server.Players", "getPlayerNames")
+                    .setBody(
+                "{ java.util.ArrayList names = new java.util.ArrayList();" +
+                "com.wurmonline.server.players.Player[] players = com.wurmonline.server.Players.getInstance().getPlayers();" +
+                "for(int i = 0; i < players.length; i++)" +
+                "    if(!(players[i] instanceof mod.maxammus.serfs.creatures.Serf))" +
+                "        names.add(players[i].getName());" +
+                "return ($r)names.toArray(new java.lang.String[0]); }");
 
-                dummyClass.addMethod(dummyMethod);
-            }
+            logger.info("Making Serf.setFullyLoaded call Player.setFullyLoaded");
+            classPool.getMethod("mod.maxammus.serfs.creatures.Serf", "setFullyLoaded")
+                    .insertBefore("super.setFullyLoaded();");
+
+            //Needed to avoid concurrent modification exception when logging serfs in using onPlayerLogin
+            logger.info("Adding custom player login hook");
+            classPool.getMethod("com.wurmonline.server.Players", "addToGroups")
+                    .insertBefore("if(!mod.maxammus.serfs.Serfs.alwaysOn && !(player instanceof mod.maxammus.serfs.creatures.Serf))" +
+                            "   mod.maxammus.serfs.tasks.TaskHandler.getTaskHandler(player.getWurmId()).loginSerfs();");
+
         } catch (NotFoundException | CannotCompileException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static void makeSerfExtendPlayer() throws NotFoundException, CannotCompileException {
+        CtClass customPlayerClass = classPool.getCtClass("mod.maxammus.serfs.creatures.CustomPlayerClass");
+        CtClass playerClass = classPool.getCtClass("com.wurmonline.server.players.Player");
+
+        playerClass.setModifiers(playerClass.getModifiers() ^ Modifier.FINAL);
+        customPlayerClass.setSuperclass(playerClass);
+
+        //Set Player constructors to public
+        for(CtConstructor ctConstructor : playerClass.getDeclaredConstructors())
+            ctConstructor.setModifiers(Modifier.setPublic(ctConstructor.getModifiers()));
+
+        //Add calls to super that couldn't be done during compile
+        customPlayerClass.getConstructor("(Lcom/wurmonline/server/players/PlayerInfo;Lcom/wurmonline/communication/SocketConnection;)V")
+                .setBody("{ super($$); }");
+        customPlayerClass.getConstructor("(ILcom/wurmonline/communication/SocketConnection;)V")
+                .setBody("{ super($$); }");
     }
 
     @SuppressWarnings("unused")
@@ -385,5 +331,14 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
         if(!serverStarted)
             return;
         TaskHandler.poll();
+    }
+
+    @Override
+    public void onPlayerLogin(Player player) { }
+
+    @Override
+    public void onPlayerLogout(Player player) {
+        if(!alwaysOn)
+            TaskHandler.getTaskHandler(player.getWurmId()).logoutSerfs();
     }
 }

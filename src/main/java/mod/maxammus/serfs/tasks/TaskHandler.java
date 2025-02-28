@@ -13,6 +13,7 @@ import com.wurmonline.server.items.Item;
 import com.wurmonline.server.players.Player;
 import com.wurmonline.server.structures.NoSuchWallException;
 import mod.maxammus.serfs.Serfs;
+import mod.maxammus.serfs.creatures.CustomPlayerClass;
 import mod.maxammus.serfs.creatures.Serf;
 import mod.maxammus.serfs.util.ListUtil;
 import org.gotti.wurmunlimited.modsupport.ModSupportDb;
@@ -48,10 +49,9 @@ public class TaskHandler {
 
     public static void init() {
         logger.info("Loading serf mod databases");
-        final long start = System.nanoTime();
-        int serfCount = 0;
+        long start = System.nanoTime();
         String tableName;
-        Map<Long, TaskHandler> serfQueues = new HashMap<>(Serf.serfsLoaded);
+        Map<TaskQueue, TaskHandler> serfQueues = new HashMap<>();
         try (Connection dbcon = ModSupportDb.getModSupportDb();
              //combine the tables of queues with the same QUEUEID
              PreparedStatement ps = dbcon.prepareStatement("SELECT * FROM TaskQueues " +
@@ -75,18 +75,14 @@ public class TaskHandler {
                     }
                     //Personal serf TaskQueue, store id to match it to the serf when serf assignments are loaded later.
                     else {
-                        serfCount++;
                         taskQueue = new TaskQueue(rs);
-                        serfQueues.put(queueid, taskHandler);
+                        serfQueues.put(taskQueue, taskHandler);
                     }
                 }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        if (serfCount != Serf.serfsLoaded)
-            logger.warning("Loaded " + serfCount + " queues for serfs from database.  " + Serf.serfsLoaded + " serfs loaded from creature database!");
-
 
         tableName = "TaskProfiles";
         try (Connection dbcon = ModSupportDb.getModSupportDb();
@@ -107,18 +103,12 @@ public class TaskHandler {
             while (rs.next()) {
                 long serfid = rs.getLong("SERFID");
                 long queueid = rs.getLong("QUEUEID");
-                Serf serf = (Serf) Creatures.getInstance().getCreature(serfid);
                 TaskQueue taskQueue = taskQueues.get(queueid);
+                //workaround for Serf not extending Player at compile time
+                Serf serf = (Serf)(Creature) Players.getInstance().getPlayerOrNull(serfid);
                 taskQueue.assignedSerfs.add(serf);
-                if(taskQueue instanceof TaskGroup)
-                    ((TaskGroup)taskQueue).groupwideTasks.put(serf, new ArrayList<>());
-                //Check if this is the serf's personal TaskQueue
-                if (serfQueues.containsKey(queueid)) {
-                    TaskHandler taskHandler = serfQueues.get(queueid);
-                    taskHandler.serfs.add(serf);
-                    serf.ownerId = taskHandler.playerId;
-                    serf.taskQueue = taskQueue;
-                }
+                if (taskQueue instanceof TaskGroup)
+                    ((TaskGroup) taskQueue).groupwideTasks.put(serf, new ArrayList<>());
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -193,6 +183,35 @@ public class TaskHandler {
             throw new RuntimeException(e);
         }
         logger.log(Level.INFO, "Loaded serf mod databases.  That took " + (System.nanoTime() - start) / 1000000.0f + " ms.");
+
+        if(Serfs.alwaysOn) {
+            logger.info("alwaysOn enabled.  Logging serfs in now.");
+            start = System.nanoTime();
+            for (TaskHandler taskHandler : taskHandlers)
+                taskHandler.loginSerfs();
+            logger.log(Level.INFO, "Serfs logged in.  That took " + (System.nanoTime() - start) / 1000000.0f + " ms.");
+        }
+    }
+
+    public void loginSerfs() {
+        for(TaskQueue taskQueue : taskQueues.values())
+            if(taskQueue.getIdentity().startsWith("Serf ") && taskQueue.playerId == playerId)
+                try {
+                    CustomPlayerClass.doLogIn(taskQueue.name);
+                    Serf serf = (Serf)(Creature)Players.getInstance().getPlayerOrNull(taskQueue.name);
+                    serf.ownerId = playerId;
+                    serf.taskQueue = taskQueue;
+                    if(!serfs.contains(serf))
+                        serfs.add(serf);
+                } catch (Exception e) {
+                    logger.warning("Serf " + taskQueue.name + " not found.  Deleting.");
+                    taskQueue.deleteFromDb();
+                }
+    }
+
+    public void logoutSerfs() {
+        for(Serf serf : serfs)
+            ((Player)(Creature)serf).setLink(false);
     }
 
     public static TaskHandler getTaskHandler(long playerId) {
@@ -349,6 +368,7 @@ public class TaskHandler {
          serf.taskQueue.removeContainer(serf.taskQueue.containers.get(0));
         while(!serf.taskQueue.queue.isEmpty())
          serf.taskQueue.removeTask(serf.taskQueue.queue.get(0));
+        serf.taskQueue.deleteFromDb();
         for (TaskQueue queue : taskGroups)
             queue.removeSerf(serf);
         for (TaskQueue queue : taskAreas)

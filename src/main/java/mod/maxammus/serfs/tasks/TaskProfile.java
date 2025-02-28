@@ -11,6 +11,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.logging.Logger;
 
+import static com.wurmonline.server.MiscConstants.NOID;
+
 public class TaskProfile {
     private final Logger logger = Logger.getLogger(this.getClass().getName());
     private TaskQueue selectedQueue = null;
@@ -31,7 +33,7 @@ public class TaskProfile {
         profileId = ++TaskHandler.profileIdCounter;
         DBUtil.executeSingleStatement("INSERT INTO TaskProfiles " +
                 "(PROFILEID, PLAYERID, SELECTEDQUEUE, REPEAT, WHILETIMERSHOWS, WHILEACTIONAVAILABLE, READD, ACTIVEITEMTEMPLATE, TAKECONTAINER, DROPCONTAINER, TAKECONTAINERGROUP, DROPCONTAINERGROUP) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                profileId, playerId, -10, repeat, whileTimerShows, whileActionAvailable, reAdd, -10, takeContainerId, dropContainerId, takeContainerGroup, dropContainerGroup);
+                profileId, playerId, NOID, repeat, whileTimerShows, whileActionAvailable, reAdd, NOID, takeContainerId, dropContainerId, takeContainerGroup, dropContainerGroup);
     }
 
     public TaskProfile(ResultSet rs) throws SQLException {
@@ -189,7 +191,7 @@ public class TaskProfile {
         changed = false;
         DBUtil.executeSingleStatement("UPDATE TaskProfiles SET " +
                 "SELECTEDQUEUE=?,TAKECONTAINER=?,DROPCONTAINER=?,ACTIVEITEMTEMPLATE=?,REPEAT=?,READD=?,WHILETIMERSHOWS=?,WHILEACTIONAVAILABLE=?,TAKECONTAINERGROUP=?,DROPCONTAINERGROUP=? WHERE PROFILEID=?",
-                selectedQueue != null ? selectedQueue.queueId : -10, takeContainerId, dropContainerId, activeItemTemplate != null ? activeItemTemplate.getTemplateId() : null, repeat, reAdd, whileTimerShows, whileActionAvailable, takeContainerGroup, dropContainerGroup, profileId);
+                selectedQueue != null ? selectedQueue.queueId : NOID, takeContainerId, dropContainerId, activeItemTemplate != null ? activeItemTemplate.getTemplateId() : null, repeat, reAdd, whileTimerShows, whileActionAvailable, takeContainerGroup, dropContainerGroup, profileId);
     }
 
     public boolean deleteFromDb() {

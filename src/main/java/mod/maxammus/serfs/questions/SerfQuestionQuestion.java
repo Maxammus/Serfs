@@ -1,5 +1,6 @@
 package mod.maxammus.serfs.questions;
 
+import com.wurmonline.server.Players;
 import com.wurmonline.server.creatures.Creature;
 import com.wurmonline.server.creatures.Creatures;
 import com.wurmonline.server.players.Player;
@@ -37,7 +38,7 @@ public class SerfQuestionQuestion implements ModQuestion {
     }
 
     public static void create(Player player, long target, int width, int height, float xLoc, float yLoc, boolean resizeable, String content, int r, int g, int b) {
-        Creature serf = Creatures.getInstance().getCreatureOrNull(target);
+        Creature serf = Players.getInstance().getPlayerOrNull(target);
         ModQuestions.createQuestion(player, "Question from: " + serf.getName(), "", target, new SerfQuestionQuestion(width, height, xLoc, yLoc, resizeable, content, r, g, b)).sendQuestion();
 
     }
