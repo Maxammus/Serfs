@@ -11,9 +11,11 @@ import com.wurmonline.server.creatures.Creatures;
 import com.wurmonline.server.creatures.NoSuchCreatureException;
 import com.wurmonline.server.items.Item;
 import com.wurmonline.server.players.Player;
+import com.wurmonline.server.skills.Skill;
+import com.wurmonline.server.skills.Skills;
+import com.wurmonline.server.skills.SkillsFactory;
 import com.wurmonline.server.structures.NoSuchWallException;
 import mod.maxammus.serfs.Serfs;
-import mod.maxammus.serfs.creatures.CustomPlayerClass;
 import mod.maxammus.serfs.creatures.Serf;
 import mod.maxammus.serfs.util.ListUtil;
 import org.gotti.wurmunlimited.modsupport.ModSupportDb;
@@ -22,7 +24,6 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
@@ -37,9 +38,11 @@ public class TaskHandler {
     public static final ArrayList<TaskHandler> taskHandlers = new ArrayList<>();
     public long playerId;
     public ArrayList<Serf> serfs = new ArrayList<>();
+    public ArrayList<TaskQueue> serfQueues = new ArrayList<>();
     public ArrayList<TaskGroup> taskGroups = new ArrayList<>();
     public ArrayList<TaskArea> taskAreas = new ArrayList<>();
     public ArrayList<TaskProfile> taskProfiles = new ArrayList<>();
+    Map<Integer, Skill> ownerSkills;
     public static Map<Long, TaskQueue> taskQueues = new ConcurrentHashMap<>();
 
     public TaskHandler(long playerId) {
@@ -50,8 +53,28 @@ public class TaskHandler {
     public static void init() {
         logger.info("Loading serf mod databases");
         long start = System.nanoTime();
+        try (Connection dbcon = ModSupportDb.getModSupportDb();
+             PreparedStatement ps = dbcon.prepareStatement("SELECT MAX(TASKID) FROM TASKS");
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next())
+                taskIdCounter = rs.getLong("MAX(TASKID)");
+        } catch (Exception e) { throw new RuntimeException(e); }
+
+        try (Connection dbcon = ModSupportDb.getModSupportDb();
+             PreparedStatement ps = dbcon.prepareStatement("SELECT MAX(PROFILEID) FROM TaskProfiles");
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next())
+                profileIdCounter = rs.getLong("MAX(PROFILEID)");
+        } catch (Exception e) { throw new RuntimeException(e); }
+
+        try (Connection dbcon = ModSupportDb.getModSupportDb();
+             PreparedStatement ps = dbcon.prepareStatement("SELECT MAX(QUEUEID) FROM TaskQueues");
+             ResultSet rs = ps.executeQuery()) {
+            if (rs.next())
+                queueIdCounter = rs.getLong("MAX(QUEUEID)");
+        } catch (Exception e) { throw new RuntimeException(e); }
+
         String tableName;
-        Map<TaskQueue, TaskHandler> serfQueues = new HashMap<>();
         try (Connection dbcon = ModSupportDb.getModSupportDb();
              //combine the tables of queues with the same QUEUEID
              PreparedStatement ps = dbcon.prepareStatement("SELECT * FROM TaskQueues " +
@@ -73,16 +96,11 @@ public class TaskHandler {
                         taskQueue = new TaskArea(rs);
                         taskHandler.taskAreas.add((TaskArea) taskQueue);
                     }
-                    //Personal serf TaskQueue, store id to match it to the serf when serf assignments are loaded later.
-                    else {
-                        taskQueue = new TaskQueue(rs);
-                        serfQueues.put(taskQueue, taskHandler);
-                    }
+                    else
+                        taskHandler.serfQueues.add(new TaskQueue(rs));
                 }
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        } catch (Exception e) { throw new RuntimeException(e); }
 
         tableName = "TaskProfiles";
         try (Connection dbcon = ModSupportDb.getModSupportDb();
@@ -92,9 +110,7 @@ public class TaskHandler {
                 TaskHandler taskHandler = getTaskHandler(rs.getLong("PLAYERID"));
                 taskHandler.taskProfiles.add(new TaskProfile(rs));
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        } catch (Exception e) { throw new RuntimeException(e); }
 
         tableName = "SerfAssignments";
         try (Connection dbcon = ModSupportDb.getModSupportDb();
@@ -104,15 +120,12 @@ public class TaskHandler {
                 long serfid = rs.getLong("SERFID");
                 long queueid = rs.getLong("QUEUEID");
                 TaskQueue taskQueue = taskQueues.get(queueid);
-                //workaround for Serf not extending Player at compile time
-                Serf serf = (Serf)(Creature) Players.getInstance().getPlayerOrNull(serfid);
-                taskQueue.assignedSerfs.add(serf);
+//                Serf serf = (Serf)(Creature) Players.getInstance().getPlayerOrNull(serfid);
+                taskQueue.assignedSerfs.add(serfid);
                 if (taskQueue instanceof TaskGroup)
-                    ((TaskGroup) taskQueue).groupwideTasks.put(serf, new ArrayList<>());
+                    ((TaskGroup) taskQueue).groupwideTasks.put(serfid, new ArrayList<>());
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        } catch (Exception e) { throw new RuntimeException(e); }
 
         tableName = "TaskContainerAssignments";
         try (Connection dbcon = ModSupportDb.getModSupportDb();
@@ -122,9 +135,7 @@ public class TaskHandler {
                 long itemId = rs.getLong("ITEMID");
                 taskQueues.get(rs.getLong("QUEUEID")).containers.add(itemId);
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        } catch (Exception e) { throw new RuntimeException(e); }
 
         tableName = "TaskGroupAssignments";
         try (Connection dbcon = ModSupportDb.getModSupportDb();
@@ -135,14 +146,12 @@ public class TaskHandler {
                 TaskArea taskArea = (TaskArea) taskQueues.get(rs.getLong("QUEUEID"));
                 taskArea.assignedGroups.add(taskGroup);
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        } catch (Exception e) { throw new RuntimeException(e); }
 
-        tableName = "Tasks";
+        tableName = "TASKS";
         try (Connection dbcon = ModSupportDb.getModSupportDb();
              //Order by asc to put tasks back into the spot in queue they were saved in.
-             PreparedStatement ps = dbcon.prepareStatement("SELECT * FROM " + tableName + " ORDER BY QUEUEPOSITION ASC;");
+             PreparedStatement ps = dbcon.prepareStatement("SELECT * FROM " + tableName + " ORDER BY PRIORITY ASC;");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 Task task = new Task(rs);
@@ -152,61 +161,24 @@ public class TaskHandler {
                     logger.warning("Loaded task " + task.taskId +" with invalid queue");
                 }
             }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
-        try (Connection dbcon = ModSupportDb.getModSupportDb();
-             PreparedStatement ps = dbcon.prepareStatement("SELECT MAX(QUEUEID) FROM TaskQueues");
-             ResultSet rs = ps.executeQuery()) {
-            if (rs.next())
-                queueIdCounter = rs.getLong("MAX(QUEUEID)");
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
-        try (Connection dbcon = ModSupportDb.getModSupportDb();
-             PreparedStatement ps = dbcon.prepareStatement("SELECT MAX(TASKID) FROM Tasks");
-             ResultSet rs = ps.executeQuery()) {
-            if (rs.next())
-                taskIdCounter = rs.getLong("MAX(TASKID)");
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
-        try (Connection dbcon = ModSupportDb.getModSupportDb();
-             PreparedStatement ps = dbcon.prepareStatement("SELECT MAX(PROFILEID) FROM TaskProfiles");
-             ResultSet rs = ps.executeQuery()) {
-            if (rs.next())
-                profileIdCounter = rs.getLong("MAX(PROFILEID)");
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        } catch (Exception e) { throw new RuntimeException(e); }
         logger.log(Level.INFO, "Loaded serf mod databases.  That took " + (System.nanoTime() - start) / 1000000.0f + " ms.");
-
         if(Serfs.alwaysOn) {
-            logger.info("alwaysOn enabled.  Logging serfs in now.");
+            logger.info("alwaysOn enabled.  Logging serfs in");
             start = System.nanoTime();
             for (TaskHandler taskHandler : taskHandlers)
                 taskHandler.loginSerfs();
             logger.log(Level.INFO, "Serfs logged in.  That took " + (System.nanoTime() - start) / 1000000.0f + " ms.");
         }
+
     }
 
     public void loginSerfs() {
-        for(TaskQueue taskQueue : taskQueues.values())
-            if(taskQueue.getIdentity().startsWith("Serf ") && taskQueue.playerId == playerId)
-                try {
-                    CustomPlayerClass.doLogIn(taskQueue.name);
-                    Serf serf = (Serf)(Creature)Players.getInstance().getPlayerOrNull(taskQueue.name);
-                    serf.ownerId = playerId;
-                    serf.taskQueue = taskQueue;
-                    if(!serfs.contains(serf))
-                        serfs.add(serf);
-                } catch (Exception e) {
-                    logger.warning("Serf " + taskQueue.name + " not found.  Deleting.");
-                    taskQueue.deleteFromDb();
-                }
+        for(TaskQueue taskQueue : serfQueues) {
+            Serf serf = Serf.createSerf(taskQueue.name, taskQueue.playerId);
+            if(serf == null)
+                logger.warning("Failed to log in " + taskQueue.name);
+        }
     }
 
     public void logoutSerfs() {
@@ -225,9 +197,12 @@ public class TaskHandler {
 
     public static void poll() {
         for (TaskHandler taskHandler : taskHandlers) {
+            long start = System.currentTimeMillis();
             for (Serf serf : taskHandler.serfs) {
                 serf.pollTasks();
             }
+            if(System.currentTimeMillis() - start > Constants.lagThreshold)
+                logger.info("Polling serfs of player " +  taskHandler.playerId + " took " + (System.currentTimeMillis() - start) + "ms");
         }
     }
 
@@ -286,7 +261,7 @@ public class TaskHandler {
     }
 
     public void addGroup(String name) {
-        if (name == null || name.equals(""))
+        if (name == null || name.isEmpty())
             return;
         else if (ListUtil.findOrNull(taskGroups, taskArea -> taskArea.name.equals(name)) != null)
             return;
@@ -307,7 +282,7 @@ public class TaskHandler {
     }
 
     public void addArea(String name, int x, int y, int layer, int floor, int length, int width, float rotation) {
-        if (name == null || name.equals(""))
+        if (name == null || name.isEmpty())
             return;
         else if (ListUtil.findOrNull(taskAreas, taskArea -> taskArea.name.equals(name)) != null)
             return;
@@ -329,7 +304,7 @@ public class TaskHandler {
 
     public void receiveAction(final Creature creature, final Communicator comm, final long subject, final long target, final short action) {
         TaskProfile taskProfile = getSelectedProfile();
-        if(Serfs.blacklist.contains(action) || (Serfs.whitelist.size() > 0 && !Serfs.whitelist.contains(action))) {
+        if(Serfs.blacklist.contains(action) || (!Serfs.whitelist.isEmpty() && !Serfs.whitelist.contains(action))) {
             comm.sendNormalServerMessage("Serfs are not allowed to do that.");
             return;
         }
@@ -370,15 +345,43 @@ public class TaskHandler {
          serf.taskQueue.removeTask(serf.taskQueue.queue.get(0));
         serf.taskQueue.deleteFromDb();
         for (TaskQueue queue : taskGroups)
-            queue.removeSerf(serf);
+            queue.removeSerf(serf.getWurmId());
         for (TaskQueue queue : taskAreas)
-            queue.removeSerf(serf);
+            queue.removeSerf(serf.getWurmId());
         if(serf.citizenVillage != null)
             serf.citizenVillage.removeCitizen(serf);
         serfs.remove(serf);
     }
 
     public void addSerf(Serf serf) {
-        serfs.add(serf);
+        if(!serfs.contains(serf))
+            serfs.add(serf);
+    }
+
+    public static Map<Integer, Skill> getSkillMapFor(long id) {
+        //See if id has an owner and is a serf
+        long owner = getOwnerOf(id);
+        if(owner == -10)
+            //id is a player
+            owner = id;
+        TaskHandler taskHandler = TaskHandler.getTaskHandler(owner);
+        if(taskHandler.ownerSkills == null) {
+            Skills skills = SkillsFactory.createSkills(id);
+            try {
+                taskHandler.ownerSkills = skills.getSkillTree();
+            } catch (Exception e) {
+                taskHandler.ownerSkills = null;
+                logger.warning("Failed to initially load hivemind skill for owner " + id);
+            }
+        }
+        return taskHandler.ownerSkills;
+    }
+
+    public static long getOwnerOf(long id) {
+        for(TaskHandler taskHandler : taskHandlers)
+            for(TaskQueue taskQueue : taskHandler.serfQueues)
+                if(taskQueue.assignedSerfs.contains(id))
+                    return taskHandler.playerId;
+        return -10;
     }
 }

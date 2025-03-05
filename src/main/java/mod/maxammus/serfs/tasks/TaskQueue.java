@@ -1,6 +1,8 @@
 package mod.maxammus.serfs.tasks;
 
 import com.wurmonline.server.Items;
+import com.wurmonline.server.Players;
+import com.wurmonline.server.creatures.Creature;
 import com.wurmonline.server.items.Item;
 import mod.maxammus.serfs.creatures.Serf;
 import mod.maxammus.serfs.util.DBUtil;
@@ -15,7 +17,7 @@ public class TaskQueue {
     private final Logger logger = Logger.getLogger(this.getClass().getName());
     public ArrayList<Task> queue = new ArrayList<>();
     public ArrayList<Long> containers = new ArrayList<>();
-    public ArrayList<Serf> assignedSerfs = new ArrayList<>();
+    public ArrayList<Long> assignedSerfs = new ArrayList<>();
     public boolean paused = false;
     public String name;
     public long queueId;
@@ -51,19 +53,23 @@ public class TaskQueue {
 
     public void addTask(TaskProfile taskProfile, short action, long target) {
         Task task = new Task(taskProfile, action, target);
-        task.addToDB(queue.size());
+        task.addToDB(System.currentTimeMillis(), queueId);
         queue.add(task);
 
     }
 
     public void addTask(int index, Task task) {
+        //Give tasks some form of priority so they can load back in the correct order
+        long priority = System.currentTimeMillis() + queue.size();
         if(index == -1)
             index = queue.size();
+        else
+            priority = index;
         queue.add(index, task);
         if(task.inDb)
-            task.save(index, queueId);
+            task.save(priority, queueId);
         else
-            task.addToDB(index);
+            task.addToDB(priority, queueId);
     }
     public void addTask(Task task) {
         addTask(-1, task);
@@ -71,6 +77,8 @@ public class TaskQueue {
 
     public void removeTask(Task task)
     {
+        if(task.assigned != null)
+            task.finishTask("Ordered to stop task.");
         queue.remove(task);
         task.deleteFromDb();
     }
@@ -86,11 +94,11 @@ public class TaskQueue {
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public boolean hasTasksFor(Serf serf) {
-        return !paused && queue.size() > 0 && assignedSerfs.contains(serf);
+        return !paused && queue.size() > 0 && assignedSerfs.contains(serf.getWurmId());
     }
 
     public boolean givesTasksTo(Serf serf) {
-        return assignedSerfs.contains(serf);
+        return assignedSerfs.contains(serf.getWurmId());
     }
 
     public String getIdentity() {
@@ -108,8 +116,8 @@ public class TaskQueue {
 
     public List<Task> getActiveTasks() {
         List<Task> toRet = new ArrayList<>();
-        for(Serf serf : assignedSerfs) {
-            ArrayList<Task> tasks = serf.taskQueue.queue;
+        for(long serfId : assignedSerfs) {
+            ArrayList<Task> tasks = getSerf(serfId).taskQueue.queue;
             if (tasks.size() > 0 && tasks.get(0).parentId == queueId)
                 toRet.add(tasks.get(0));
         }
@@ -126,16 +134,16 @@ public class TaskQueue {
     }
 
 
-    public void addSerf(Serf serf) {
-        if(!assignedSerfs.contains(serf)) {
-            DBUtil.executeSingleStatement("INSERT INTO SerfAssignments (SERFID,QUEUEID) VALUES (?,?)", serf.getWurmId(), queueId);
-            assignedSerfs.add(serf);
+    public void addSerf(long id) {
+        if(!assignedSerfs.contains(id)) {
+            DBUtil.executeSingleStatement("INSERT INTO SerfAssignments (SERFID,QUEUEID) VALUES (?,?)", id, queueId);
+            assignedSerfs.add(id);
         }
     }
 
-    public void removeSerf(Serf serf) {
-        DBUtil.executeSingleStatement("DELETE FROM SerfAssignments WHERE SERFID=? AND QUEUEID=?", serf.getWurmId(), queueId);
-        assignedSerfs.remove(serf);
+    public void removeSerf(long id) {
+        DBUtil.executeSingleStatement("DELETE FROM SerfAssignments WHERE SERFID=? AND QUEUEID=?", id, queueId);
+        assignedSerfs.remove(id);
     }
 
     public void reAddOrDelete(Task task) {
@@ -155,27 +163,27 @@ public class TaskQueue {
         DBUtil.executeSingleStatement("UPDATE TaskQueues SET PAUSED=? WHERE QUEUEID=?", paused, queueId);
     }
 
-    public void updateSerfs(ArrayList<Serf> newSerfs) {
+    public void updateSerfs(ArrayList<Long> newSerfs) {
         try (Connection dbcon = ModSupportDb.getModSupportDb();
              PreparedStatement ps = dbcon.prepareStatement("DELETE FROM SerfAssignments WHERE SERFID=? AND QUEUEID=?");
              PreparedStatement ps2 = dbcon.prepareStatement("INSERT INTO SerfAssignments (SERFID,QUEUEID) VALUES (?,?)")) {
             for(int i = 0; i < assignedSerfs.size() ; i++) {
-                Serf serf = assignedSerfs.get(i);
-                if (!newSerfs.contains(serf)) {
-                    ps.setLong(1, serf.getWurmId());
+                long id = assignedSerfs.get(i);
+                if (!newSerfs.contains(id)) {
+                    ps.setLong(1, id);
                     ps.setLong(2, queueId);
                     ps.addBatch();
-                    removeSerf(serf);
+                    removeSerf(id);
                     i--;
                 }
             }
             ps.executeBatch();
-            for(Serf serf : newSerfs)
-                if(!assignedSerfs.contains(serf)) {
-                    ps2.setLong(1, serf.getWurmId());
+            for(long serfid : newSerfs)
+                if(!assignedSerfs.contains(serfid)) {
+                    ps2.setLong(1, serfid);
                     ps2.setLong(2, queueId);
                     ps2.addBatch();
-                    addSerf(serf);
+                    addSerf(serfid);
                 }
             ps2.executeBatch();
         } catch (SQLException e) {
@@ -211,22 +219,6 @@ public class TaskQueue {
         DBUtil.executeSingleStatement("DELETE FROM TaskContainerAssignments WHERE QUEUEID=? AND ITEMID=?", queueId, containerId);
     }
 
-    public void updateTaskPositions() {
-        //TODO: Probably add a cooldown to this
-        try (Connection dbcon = ModSupportDb.getModSupportDb();
-             PreparedStatement ps = dbcon.prepareStatement("UPDATE Tasks SET QUEUEPOSITION=? WHERE TASKID=?")) {
-            for(int i = 0; i < queue.size(); i++) {
-                int id = 1;
-                ps.setInt(id++, i);
-                ps.setLong(id++, queue.get(i).taskId);
-                ps.addBatch();
-            }
-            ps.executeBatch();
-        } catch (SQLException e) {
-            logger.warning("Exception while saving task: " + e.getMessage());
-        }
-    }
-
     public void addContainer(long target) {
         if(!containers.contains(target)) {
             DBUtil.executeSingleStatement("INSERT INTO TaskContainerAssignments (ITEMID, QUEUEID) VALUES (?,?)", target, queueId);
@@ -236,14 +228,18 @@ public class TaskQueue {
 
     public ArrayList<Item> getContainers() {
         ArrayList<Item> toRet = new ArrayList<>(containers.size());
-        for(int i = 0; i < containers.size(); i++) {
-            Item item = Items.getItemOptional(containers.get(i)).orElse(null);
-            if(item == null) {
-                removeContainer(containers.get(i));
+        for(Long container : containers) {
+            Item item = Items.getItemOptional(container).orElse(null);
+            if (item == null) {
+                removeContainer(container);
                 continue;
             }
             toRet.add(item);
         }
         return toRet;
+    }
+
+    public static Serf getSerf(long id) {
+        return (Serf)(Creature) Players.getInstance().getPlayerOrNull(id);
     }
 }

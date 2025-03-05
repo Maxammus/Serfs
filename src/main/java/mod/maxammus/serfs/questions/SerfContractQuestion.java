@@ -8,6 +8,7 @@ import com.wurmonline.server.intra.IntraServerConnection;
 import com.wurmonline.server.players.Player;
 import com.wurmonline.server.questions.Question;
 import com.wurmonline.server.utils.BMLBuilder;
+import com.wurmonline.server.utils.StringUtil;
 import mod.maxammus.serfs.creatures.CustomPlayerClass;
 import mod.maxammus.serfs.creatures.Serf;
 import org.gotti.wurmunlimited.modsupport.questions.ModQuestion;
@@ -21,9 +22,7 @@ import java.util.logging.Logger;
 import static com.wurmonline.server.utils.BMLBuilder.createGenericBuilder;
 
 public class SerfContractQuestion implements ModQuestion {
-
-    static Logger logger = Logger.getLogger(ManageSerfQuestion.class.getName());
-
+    static Logger logger = Logger.getLogger(SerfContractQuestion.class.getName());
     boolean male;
 
     public SerfContractQuestion(boolean male) {
@@ -40,14 +39,13 @@ public class SerfContractQuestion implements ModQuestion {
 
         bmlBuilder
                 .addLabel("Name:", null, BMLBuilder.TextType.BOLD, Color.white)
-                .addInput("name", null, true, "test", 0,0, null, null, null, 70, 16)
+                .addInput("name", null, true, null, 0,0, null, null, null, 70, 16)
                 .addRadioButton("male", "sex", "Male", male)
-                .addRadioButton("female", "sex", "Female", !male)
-                .closeBracket();
+                .addRadioButton("female", "sex", "Female", !male);
         bmlBuilder.addLabel("");
         String content = ModQuestions.getBmlHeader(question) + bmlBuilder +
                 //Close the header without a button that all the ending methods give
-            ModQuestions.createOkAnswerButton(question);
+            ModQuestions.createAnswerButton2(question);
         int height = 256;
         question.getResponder().getCommunicator().sendBml(300, height, true, true, content, 200, 200, 200, question.getTitle());
     }
@@ -56,8 +54,8 @@ public class SerfContractQuestion implements ModQuestion {
     public void answer(Question question, Properties answers) {
         Creature responder = question.getResponder();
         String name = answers.getProperty("name");
-        boolean male = Boolean.parseBoolean(answers.getProperty("male"));
-        if(LoginHandler.containsIllegalCharacters(name) || name.length() > 35){
+        male = answers.getProperty("sex").equals("male");
+        if (LoginHandler.containsIllegalCharacters(name) || name.length() > 35) {
             question.getResponder().getCommunicator().sendNormalServerMessage("Invalid name.");
             create(question.getResponder(), question.getTarget(), male);
             return;
@@ -69,9 +67,14 @@ public class SerfContractQuestion implements ModQuestion {
             return;
         }
         Creature performer = question.getResponder();
-        CustomPlayerClass.doLogIn(name);
-        Serf serf = (Serf)(Creature)Players.getInstance().getPlayerOrNull(name);
+        Serf serf = Serf.createSerf(name, performer.getWurmId());
+        if(serf == null) {
+            logger.warning("Failed to log in " + name);
+            return;
+        }
         ((Player)(Creature)serf).setBlood(IntraServerConnection.calculateBloodFromKingdom(performer.getKingdomId()));
+        //        serf.setName("Serf " + LoginHandler.raiseFirstLetter(serf.getName().substring(5)));
+        serf.setSex((byte) (male ? 0 : 1), false);
         serf.calledBy(question.getResponder());
         Items.destroyItem(question.getTarget());
     }

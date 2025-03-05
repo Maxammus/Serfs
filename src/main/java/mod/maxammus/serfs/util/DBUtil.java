@@ -106,7 +106,7 @@ public class DBUtil {
 
             for(int i = 0; i < args.length; i++)
                 ps.setObject(i + 1, args[i]);
-            ps.execute();
+            ps.executeUpdate();
         } catch (Exception e) {
             logger.warning("Exception in executeSimpleStatement: " + e.getMessage() + " - Statement: \"" + statement + "\" Args: " + Arrays.toString(args));
             return false;

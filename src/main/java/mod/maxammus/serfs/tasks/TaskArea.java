@@ -187,7 +187,6 @@ public class TaskArea extends TaskQueue implements CounterTypes {
                 else
                     removeTask(queue.get(0));
             }
-            updateTaskPositions();
             if(queue.size() > 0)
                 populateAreaTargets();
             return true;
@@ -258,7 +257,7 @@ public class TaskArea extends TaskQueue implements CounterTypes {
     public boolean hasTasksFor(Serf serf) {
         if(queue.size() == 0 || paused)
             return false;
-        if(assignedSerfs.contains(serf))
+        if(assignedSerfs.contains(serf.getWurmId()))
             return true;
         for(TaskQueue taskQueue: assignedGroups)
             if(taskQueue.givesTasksTo(serf))
@@ -273,8 +272,8 @@ public class TaskArea extends TaskQueue implements CounterTypes {
     public List<Task> getActiveTasks() {
         List<Task> toRet = super.getActiveTasks();
         for(TaskGroup group : assignedGroups)
-            for(Serf serf : group.assignedSerfs) {
-                ArrayList<Task> tasks = serf.taskQueue.queue;
+            for(long serfId : group.assignedSerfs) {
+                ArrayList<Task> tasks = TaskQueue.getSerf(serfId).taskQueue.queue;
                 if (tasks.size() > 0 && tasks.get(0).parentId == queueId)
                     toRet.add(tasks.get(0));
             }

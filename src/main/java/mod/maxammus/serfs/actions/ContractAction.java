@@ -98,8 +98,8 @@ public class ContractAction implements ModAction {
                                 performer.getCommunicator().sendNormalServerMessage("Error calling serf.");
                                 return true;
                             }
-                            CustomPlayerClass.doLogIn(name);
-                            Serf serf = (Serf)(Creature)Players.getInstance().getPlayerOrNull(name);
+
+                            Serf serf = Serf.createSerf(name, performer.getWurmId());
                             serf.calledBy(performer);
                             Items.destroyItem(target.getWurmId());
                         }

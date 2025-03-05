@@ -26,6 +26,7 @@ import mod.maxammus.serfs.tasks.Task;
 import mod.maxammus.serfs.tasks.TaskHandler;
 import mod.maxammus.serfs.tasks.TaskQueue;
 import mod.maxammus.serfs.util.DBUtil;
+import mod.maxammus.serfs.util.ListUtil;
 import org.gotti.wurmunlimited.modloader.ReflectionUtil;
 
 import java.io.IOException;
@@ -41,7 +42,6 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
     public List<ActionEntry> lastAvailableActions = new ArrayList<>();
     public long ownerId = NOID;
     public TaskQueue taskQueue;
-    public Question question;
     public int numItemsToTake;
     long nextActionTime = 0;
     public boolean failedToCarry = false;
@@ -104,14 +104,13 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
     //seems to be the most universal way to see when an action actually went through
     @Override
     public void sendActionControl(final String actionString, final boolean start, final int timeLeft) {
-        if (taskQueue.queue.size() != 0 && start)
+        if(taskQueue != null && !taskQueue.queue.isEmpty() && start)
             taskQueue.queue.get(0).receivedActionTimer = true;
         VolaTile playerCurrentTile = this.getCurrentTile();
         this.sendToLoggers("Action string " + actionString + ", starting=" + start + ", time left " + timeLeft);
         if (playerCurrentTile != null) {
             playerCurrentTile.sendActionControl(this, actionString, start, timeLeft);
         }
-
     }
 
     //Return null when path size is 0 to avoid killing the pathfinding thread.
@@ -132,6 +131,7 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
             }
         }
         catch (NoPathException ignored) {
+            setPathing(false, true);
             if(taskQueue.queue.size() > 0)
                 //pathing is done in another thread so to avoid having to mess with synchronize
                 // just set a flag to finish next poll
@@ -141,6 +141,7 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
     }
 
     public void handleOwnerQuestionResponse(Properties properties) {
+        Question question = ((Player)(Creature)this).question;
         question.answer(properties);
         Questions.removeQuestion(question);
     }
@@ -244,15 +245,18 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
 
     public void setupQueue(long ownerId) {
         this.ownerId = ownerId;
+        TaskHandler taskHandler = TaskHandler.getTaskHandler(ownerId);
+        taskHandler.addSerf(this);
+        //Queue may already exist and serf is just logging in
+        taskQueue = ListUtil.findOrNull(taskHandler.serfQueues, tq -> tq.name.equals(name));
         if(taskQueue == null) {
             taskQueue = new TaskQueue(ownerId, name);
-            taskQueue.addSerf(this);
+            taskQueue.addSerf(getWurmId());
             taskQueue.addToDb(ownerId);
             TaskHandler.taskQueues.put(taskQueue.queueId, taskQueue);
         }
         else
             DBUtil.executeSingleStatement("UPDATE TaskQueues SET PLAYERID=? WHERE QUEUEID=?", ownerId, taskQueue.queueId);
-        TaskHandler.getTaskHandler(ownerId).addSerf(this);
     }
 
     @Override
@@ -292,20 +296,19 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
     public void setFullyLoaded() {
         //added during runtime:
         //super.setFullyLoaded()
+
         //simulate client sending a teleport command after log in to finish some loading that is handled there
         handleTeleport();
     }
 
     public void calledBy(Creature owner) {
-        ownerId = owner.getWurmId();
         getStatus().setPositionXYZ(owner.getPosX(), owner.getPosY(), owner.getPositionZ());
         getStatus().setLayer(owner.getLayer());
-        setupQueue(owner.getWurmId());
         owner.getCommunicator().sendNormalServerMessage("You call " + getName());
         try {
             setKingdomId(owner.getKingdomId());
         } catch (IOException e) {
-            question.getResponder().getCommunicator().sendNormalServerMessage("Couldn't set kingdom for " + name);
+            owner.getCommunicator().sendNormalServerMessage("Couldn't set kingdom for " + name);
             logger.warning("Couldn't set kingdom for " + name);
         }
         try {
@@ -319,5 +322,23 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
             owner.getCommunicator().sendNormalServerMessage("Couldn't add " + name + "to village");
             logger.warning("Couldn't add " + name + "to village");
         }
+    }
+
+    public static Serf createSerf(String name, long ownerId) {
+        Serf serf = CustomPlayerClass.doLogIn(name);
+        if(serf == null)
+            return null;
+        serf.ownerId = ownerId;
+        serf.setupQueue(ownerId);
+//        if(Serfs.hivemind) {
+//            try {
+//                Field skills = Skills.class.getDeclaredField("skills");
+//                ReflectionUtil.setPrivateField(serf.getSkills(), skills, TaskHandler.getTaskHandler(ownerId).getSkillMap());
+//            } catch (NoSuchFieldException | IllegalAccessException e) {
+//                logger.warning("Couldn't set hivemind skills for " + name);
+//            }
+//        }
+        TaskHandler.getTaskHandler(ownerId).addSerf(serf);
+        return serf;
     }
 }

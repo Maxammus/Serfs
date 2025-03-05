@@ -20,7 +20,6 @@ import static com.wurmonline.server.utils.BMLBuilder.*;
 import static mod.maxammus.serfs.util.BMLUtil.openBracket;
 
 public class EditQueueQuestion implements ModQuestion {
-
     static Logger logger = Logger.getLogger(EditQueueQuestion.class.getName());
     int height = 300;
     long queueId;
@@ -61,7 +60,7 @@ public class EditQueueQuestion implements ModQuestion {
         bmlBuilder.closeBracket();
         bmlBuilder.addLabel("");
 
-        if(!queueIdentity.startsWith("Serf: "))
+        if(!queueIdentity.startsWith("Serf "))
             addWorkingSerfs(bmlBuilder, queue);
 
         addInstructionList(bmlBuilder, queue);
@@ -74,13 +73,13 @@ public class EditQueueQuestion implements ModQuestion {
 
         addContainers(bmlBuilder, queue);
 
-        if(!queueIdentity.startsWith("Serf: "))
+        if(!queueIdentity.startsWith("Serf "))
             addSerfList(taskHandler, bmlBuilder, queue);
         BMLBuilder rightSide = createVertArrayNode(false);
 
-        if(queueIdentity.startsWith("Serf: ")) {
+        if(queueIdentity.startsWith("Serf ")) {
             rightSide.addLabel("Log:", null, BMLBuilder.TextType.BOLD, Color.white);
-            Iterator<String> it = queue.assignedSerfs.get(0).log.descendingIterator();
+            Iterator<String> it = TaskQueue.getSerf(queue.assignedSerfs.get(0)).log.descendingIterator();
             while(it.hasNext()) {
                 String logMessage = it.next();
                 rightSide.addLabel(logMessage);
@@ -101,7 +100,7 @@ public class EditQueueQuestion implements ModQuestion {
         for(Serf serf : taskHandler.serfs) {
             String name = serf.getName();
             serfTable
-                    .addCheckbox("serf." + serf.getWurmId(), name, queue.assignedSerfs.contains(serf));
+                    .addCheckbox("serf." + serf.getWurmId(), name, queue.assignedSerfs.contains(serf.getWurmId()));
         }
         bmlBuilder
                 .addString(serfTable.toString())
@@ -117,7 +116,7 @@ public class EditQueueQuestion implements ModQuestion {
                 continue;
             }
             String name;
-            if(!container.getDescription().equals(""))
+            if(!container.getDescription().isEmpty())
                 name = container.getActualName() + "(" + container.getDescription() + ")";
             else
                 name = container.getName();
@@ -157,7 +156,7 @@ public class EditQueueQuestion implements ModQuestion {
             .closeBracket();
         bmlBuilder.addLabel("");
         BMLBuilder groupTaskTable = createTable(13);
-        Map<Task, ArrayList<Serf>> groupwideTaskMap = queue.getTaskMapForMenu();
+        Map<Task, ArrayList<Long>> groupwideTaskMap = queue.getTaskMapForMenu();
         for(Task task : groupwideTaskMap.keySet())
         {
             groupTaskTable
@@ -214,6 +213,10 @@ public class EditQueueQuestion implements ModQuestion {
     }
 
     private static void addTaskToTable(BMLBuilder groupTaskTable, Task task, String id) {
+        String repeat;
+        if(task.whileTimerShows) repeat = "While timer shows";
+        else if(task.whileActionAvailable) repeat = "While action available";
+        else repeat = String.valueOf(task.doTimes - 1);
         groupTaskTable
                 .addLabel("use ")
                 .addLabel(task.getActiveItemTemplateName(), null, BMLBuilder.TextType.BOLD, Color.white)
@@ -222,7 +225,7 @@ public class EditQueueQuestion implements ModQuestion {
                 .addLabel(": ")
                 .addLabel(task.getTargetName(), null, BMLBuilder.TextType.BOLD, Color.white)
                 .addLabel(" repeat: ")
-                .addLabel("" + (task.whileTimerShows || task.whileActionAvailable ? "Until impossible" : task.doTimes - 1), null, BMLBuilder.TextType.BOLD, Color.white)
+                .addLabel(repeat, null, BMLBuilder.TextType.BOLD, Color.white)
                 .addLabel(" re-add: ")
                 .addLabel(task.reAdd ? "Yes" : "No", null, BMLBuilder.TextType.BOLD, Color.white)
                 .addButton("remove"+ id + "." + task.taskId, "X ", 20, 16, true);
@@ -278,12 +281,12 @@ public class EditQueueQuestion implements ModQuestion {
     private void saveQueue(Properties answers) {
         ArrayList<TaskGroup> newGroups = new ArrayList<>();
         String queueIdentity = queue.getIdentity();
-        if(!queueIdentity.startsWith("Serf: ")){
-            ArrayList<Serf> newSerfs = new ArrayList<>();
+        if(!queueIdentity.startsWith("Serf ")){
+            ArrayList<Long> newSerfs = new ArrayList<>();
             for (Serf serf : taskHandler.serfs)
                 //update serfs like this rather than rebuilding the list to keep group-wide tasks correct
                 if (Boolean.parseBoolean(answers.getProperty("serf." + serf.getWurmId())))
-                    newSerfs.add(serf);
+                    newSerfs.add(serf.getWurmId());
             queue.updateSerfs(newSerfs);
         }
         if (queue instanceof TaskArea) {

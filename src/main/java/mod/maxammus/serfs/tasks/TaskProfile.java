@@ -1,6 +1,7 @@
 package mod.maxammus.serfs.tasks;
 
 import com.wurmonline.server.Items;
+import com.wurmonline.server.Players;
 import com.wurmonline.server.items.Item;
 import com.wurmonline.server.items.ItemTemplate;
 import com.wurmonline.server.items.ItemTemplateFactory;
@@ -74,11 +75,11 @@ public class TaskProfile {
                 if (getSelectedQueue() instanceof TaskArea) {
                     for (TaskGroup group : ((TaskArea) getSelectedQueue()).assignedGroups)
                         if (group.assignedSerfs.size() > 0)
-                            return group.assignedSerfs.get(0);
+                            return TaskQueue.getSerf(group.assignedSerfs.get(0));
                 }
             }
             else
-                return getSelectedQueue().assignedSerfs.get(0);
+                return TaskQueue.getSerf(getSelectedQueue().assignedSerfs.get(0));
         }
         //taskProfile or selectedQueue are null
         catch(NullPointerException ignored) {

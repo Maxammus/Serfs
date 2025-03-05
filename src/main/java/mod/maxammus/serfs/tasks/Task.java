@@ -9,6 +9,7 @@ import com.wurmonline.server.*;
 import com.wurmonline.server.behaviours.*;
 import com.wurmonline.server.creatures.*;
 import com.wurmonline.server.creatures.ai.PathTile;
+import com.wurmonline.server.database.WurmDatabaseSchema;
 import com.wurmonline.server.items.*;
 import com.wurmonline.server.structures.NoSuchWallException;
 import com.wurmonline.server.zones.NoSuchZoneException;
@@ -21,9 +22,11 @@ import mod.maxammus.serfs.util.DBUtil;
 import mod.maxammus.serfs.util.ListUtil;
 import mod.maxammus.serfs.util.MiscUtil;
 import org.gotti.wurmunlimited.modloader.ReflectionUtil;
+import org.gotti.wurmunlimited.modsupport.ModSupportDb;
 
 import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -39,6 +42,7 @@ import static com.wurmonline.server.behaviours.Actions.REPAIR;
 
 public class Task implements CounterTypes {
     Logger logger = Logger.getLogger(this.getClass().getName());
+//    static Connection con = ModSupportDb.getModSupportDb();
     public short action;
     public Vector3f pos = new Vector3f();
     public Serf assigned;
@@ -241,15 +245,14 @@ public class Task implements CounterTypes {
             if(getTakeContainer() == null)
                 for (VolaTile vt : Zones.getTilesSurrounding((int)pos.x / 4, (int)pos.y / 4, isOnSurface(), 1)) {
                     Item[] items = vt.getItems();
-                    if(items.length > 0 )
-                        for(Item i : items) {
-                            Item parent = i.getTopParentOrNull();
-                            //Add watcher to parent to prevent an exception
-                            if (parent != null && parent.isHollow()) {
-                                parent.addWatcher(parent.getWurmId(), assigned);
-                                break;
-                            }
+                    for(Item i : items) {
+                        Item parent = i.getTopParentOrNull();
+                        //Add watcher to parent to prevent an exception
+                        if (parent != null && parent.isHollow()) {
+                            parent.addWatcher(parent.getWurmId(), assigned);
+                            break;
                         }
+                    }
                     targetItems.addAll(Arrays.asList(items));
                 }
             else
@@ -261,11 +264,13 @@ public class Task implements CounterTypes {
             targetItems = assigned.getInventory().getItems();
         }
 
-        if(action == DropAllNonToolItems.actionId)
+        if(action == DropAllNonToolItems.actionId) {
             itemIds.addAll(targetItems.stream()
                     .filter(item -> !item.isTool() && (getDropContainer() == null || !getDropContainer().isBulkContainer() || item.isBulk()))
                     .map(Item::getWurmId)
                     .collect(Collectors.toList()));
+            repeatedCount++;
+        }
         else {
             for (Item item : targetItems) {
                 ItemTemplate itemTemplate = item.getTemplate();
@@ -385,11 +390,11 @@ public class Task implements CounterTypes {
             return;
         assigned.log.add("finishing task: " + reason);
         assigned.taskQueue.queue.remove(this);
+        assigned.getStatus().setPath(null);
         assigned = null;
         TaskQueue parent = getParent();
         if(parent != null) {
             parent.reAddOrDelete(this);
-            parent.updateTaskPositions();
         }
     }
     public void poll() {
@@ -400,7 +405,7 @@ public class Task implements CounterTypes {
         if(!initialized)
             if(!initialize())
                 return;
-        if(/*!assigned.isMoving() && */assigned.getStatus().getPath() == null) {
+        if(assigned.getStatus().getPath() == null) {
             //Update target position in case the creature moved
             if(!started && WurmId.getType(target) == CounterTypes.COUNTER_TYPE_CREATURES) {
                 Creature creature = Creatures.getInstance().getCreatureOrNull(target);
@@ -409,8 +414,6 @@ public class Task implements CounterTypes {
                 else
                     finishTask("Target creature no longer exists.");
             }
-//            if(assigned.getPos2f().distance(getXYWithinTaskRange()) < .1) {
-//            if(assigned.getPos2f().distance(getXYWithinTaskRange()) < .1) {
             if(isAssignedInRange()) {
                 if(!started)
                     startTask();
@@ -434,17 +437,16 @@ public class Task implements CounterTypes {
     }
 
     private boolean isAssignedInRange() {
-        float range = action < Actions.actionEntrys.length ? Actions.actionEntrys[action].getRange() : 8f;
+        float range = 4f; //action < Actions.actionEntrys.length ? Actions.actionEntrys[action].getRange() : 4f;
         if(WurmId.getType(target) == COUNTER_TYPE_CAVETILES) {
             int tilex = Tiles.decodeTileX(target);
             int tiley = Tiles.decodeTileY(target);
             final MeshIO mesh2 = Server.caveMesh;
             int tile = mesh2.getTile(tilex, tiley);
             int heightOffset = (int) (Tiles.decodeHeight(tile) / 10.0f);
-            if(action >= 8000 || action < 2000)
-                return assigned.isWithinTileDistanceTo(tilex, tiley, heightOffset, (int) (range / 4));
+            return assigned.isWithinTileDistanceTo(tilex, tiley, heightOffset, (int) (range / 4));
         }
-        return assigned.getPos2f().distance(getXYWithinTaskRange()) < range;
+        return assigned.getPos2f().distanceSquared(pos.x, pos.y) < range * range;
     }
 
     private Action getAction() {
@@ -521,7 +523,7 @@ public class Task implements CounterTypes {
                 return false;
             }
                 //check container group
-            if (!dropContainerGroup.equals("")) {
+            if (!dropContainerGroup.isEmpty()) {
                 Item targetContainer = getClosestContainerWithSpaceInGroup(dropContainerGroup);
                 if (targetContainer != null) {
                     setDropContainer(targetContainer);
@@ -558,7 +560,7 @@ public class Task implements CounterTypes {
             }
         } else if (action == Actions.TAKE && getNumItemsCanTake(targetItemTemplate) > 0) {
             //Check if there's a container group
-            if (!takeContainerGroup.equals("")) {
+            if (!takeContainerGroup.isEmpty()) {
                 Item target = getClosestContainerWithItemInGroup(dropContainerGroup);
                 if (target != null) {
                     setTakeContainer(target);
@@ -569,7 +571,7 @@ public class Task implements CounterTypes {
                 return false;
             }
             //Check current container
-            if (getTakeContainer() != null) {
+            if(getTakeContainer() != null) {
                 pos = getTakeContainer().getPos3f();
                 if (getTakeContainer().isBulkContainer())
                     return getTakeContainer().getItems().stream()
@@ -585,6 +587,7 @@ public class Task implements CounterTypes {
                 Item first = ListUtil.findOrNull(groundItems, item1 -> item1.getTemplate() == targetItemTemplate);
                 if (first!= null) {
                     target = first.getWurmId();
+                    pos = first.getPos3f();
                     return true;
                 }
                 finishTask("No target item nearby on the ground");
@@ -756,7 +759,7 @@ public class Task implements CounterTypes {
     public Vector2f getXYWithinTaskRange() {
         Vector2f pos2f = new Vector2f(pos.x, pos.y);
         Vector2f toRet = pos2f;
-        float range = this.action < Actions.actionEntrys.length ? Actions.actionEntrys[action].getRange() / 1.25f : 1.5f;
+        float range = this.action < Actions.actionEntrys.length ? Actions.actionEntrys[action].getRange() / 2f : 1.5f;
         Vector2f heading = pos2f.subtract(assigned.getPos2f());
         if(isTileTask()) {
             if(WurmId.getType(target) == CounterTypes.COUNTER_TYPE_CAVETILES) {
@@ -790,15 +793,38 @@ public class Task implements CounterTypes {
         return toRet;
     }
 
-    public void save(int position, long queueId) {
-        DBUtil.executeSingleStatement("UPDATE Tasks SET QUEUEPOSITION=?,QUEUEID=?,POSX=?,POSY=?,POSZ=?,LAYER=?,ASSIGNED=?,TARGET=?,REPEATEDCOUNT=?,STARTED=?,INITIALIZED=?,TAKECONTAINER=?,DROPCONTAINER=? WHERE TASKID=?", position, queueId, pos.x, pos.y, pos.z, layer, assigned != null ? assigned.getWurmId() : null, target, repeatedCount, started, initialized, takeContainerId, dropContainerId, taskId);
-    }
-    public void addToUpdateBatch(PreparedStatement ps, int position, long queueId) throws SQLException {
-        DBUtil.addStatementToBatch(ps, position, queueId, pos.x, pos.y, pos.z, layer, assigned != null ? assigned.getWurmId() : null, target, repeatedCount, started, initialized, takeContainerId, dropContainerId, taskId);
+    public void save(long priority, long queueId) {
+
+        try(Connection con = ModSupportDb.getModSupportDb();
+            PreparedStatement ps = con.prepareStatement("UPDATE Tasks SET PRIORITY=?,QUEUEID=?,POSX=?,POSY=?,POSZ=?,LAYER=?,ASSIGNED=?,TARGET=?,REPEATEDCOUNT=?,STARTED=?,INITIALIZED=?,TAKECONTAINER=?,DROPCONTAINER=? WHERE TASKID=?"))
+        {
+            int id = 1;
+            ps.setLong(id++, priority);
+            ps.setLong(id++, queueId);
+            ps.setFloat(id++, pos.x);
+            ps.setFloat(id++, pos.y);
+            ps.setFloat(id++, pos.z);
+            ps.setInt(id++, layer);
+            ps.setLong(id++, assigned != null ? assigned.getWurmId() : -10);
+            ps.setLong(id++, target);
+            ps.setInt(id++, repeatedCount);
+            ps.setBoolean(id++, started);
+            ps.setBoolean(id++, initialized);
+            ps.setLong(id++, takeContainerId);
+            ps.setLong(id++, dropContainerId);
+            ps.setLong(id++, taskId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            logger.warning("Exception while saving task: " + e.getMessage());
+        }
     }
 
+//    public void addToUpdateBatch(PreparedStatement ps, int position, long queueId) throws SQLException {
+//        DBUtil.addStatementToBatch(ps, position, queueId, pos.x, pos.y, pos.z, layer, assigned != null ? assigned.getWurmId() : null, target, repeatedCount, started, initialized, takeContainerId, dropContainerId, taskId);
+//    }
+
     //should be called as it gets added to parent queue
-    public void addToDB(int position) {
+    public void addToDB(long priority, long queueId) {
         if(inDb) {
             logger.warning("Task called addToDB while already in database");
             return;
@@ -808,14 +834,58 @@ public class Task implements CounterTypes {
             return;
         }
         taskId = ++TaskHandler.taskIdCounter;
-        DBUtil.executeSingleStatement("INSERT INTO Tasks " +
-                        "(QUEUEPOSITION,TASKID,QUEUEID,ACTION,POSX,POSY,POSZ,LAYER,ASSIGNED,TARGET,DOTIMES,WHILETIMERSHOWS,WHILEACTIONAVAILABLE,READD,ACTIVEITEMTEMPLATE,TARGETITEMTEMPLATE,TARGETCREATURETEMPLATE,PARENT,REPEATEDCOUNT,STARTED,INITIALIZED,TAKECONTAINER,DROPCONTAINER,TAKECONTAINERGROUP,DROPCONTAINERGROUP,EXACTTARGET) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                position, taskId, parentId, action, pos.x, pos.y, pos.z, layer, assigned != null ? assigned.getWurmId() : null, target, doTimes, whileTimerShows, whileActionAvailable, reAdd, activeItemTemplate != null ? activeItemTemplate.getTemplateId() : null, targetItemTemplate != null ? targetItemTemplate.getTemplateId() : null, targetCreatureTemplate != null ? targetCreatureTemplate.getTemplateId() : null, parentId, repeatedCount, started, initialized, takeContainerId, dropContainerId, takeContainerGroup, dropContainerGroup, exactTarget);
+
+        try(Connection con = ModSupportDb.getModSupportDb();
+            PreparedStatement ps = con.prepareStatement("INSERT INTO TASKS " +
+                    "(PRIORITY,TASKID,QUEUEID,ACTION,POSX,POSY,POSZ,LAYER,ASSIGNED,TARGET,DOTIMES,WHILETIMERSHOWS,WHILEACTIONAVAILABLE,READD,ACTIVEITEMTEMPLATE,TARGETITEMTEMPLATE,TARGETCREATURETEMPLATE,PARENT,REPEATEDCOUNT,STARTED,INITIALIZED,TAKECONTAINER,DROPCONTAINER,TAKECONTAINERGROUP,DROPCONTAINERGROUP,EXACTTARGET) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"))
+        {
+            int id = 1;
+            ps.setLong(id++, priority);
+            ps.setLong(id++, taskId);
+            ps.setLong(id++, queueId);
+            ps.setShort(id++, action);
+            ps.setFloat(id++, pos.x);
+            ps.setFloat(id++, pos.y);
+            ps.setFloat(id++, pos.z);
+            ps.setInt(id++, layer);
+            ps.setLong(id++, assigned != null ? assigned.getWurmId() : -10);
+            ps.setLong(id++, target);
+            ps.setInt(id++, doTimes);
+            ps.setBoolean(id++, whileTimerShows);
+            ps.setBoolean(id++, whileActionAvailable);
+            ps.setBoolean(id++, reAdd);
+            ps.setInt(id++, activeItemTemplate != null ? activeItemTemplate.getTemplateId() : -10);
+            ps.setInt(id++, targetItemTemplate != null ? targetItemTemplate.getTemplateId() : -10);
+            ps.setInt(id++, targetCreatureTemplate != null ? targetCreatureTemplate.getTemplateId() :-10);
+            ps.setLong(id++, parentId);
+            ps.setInt(id++, repeatedCount);
+            ps.setBoolean(id++, started);
+            ps.setBoolean(id++, initialized);
+            ps.setLong(id++, takeContainerId);
+            ps.setLong(id++, dropContainerId);
+            ps.setString(id++, takeContainerGroup);
+            ps.setString(id++, dropContainerGroup);
+            ps.setBoolean(id++, exactTarget);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            logger.warning("Exception while adding task to database: " + e.getMessage());
+        }
         inDb = true;
     }
 
     public boolean deleteFromDb() {
-        return DBUtil.executeSingleStatement("DELETE FROM Tasks WHERE TASKID=?", taskId);
+        try(Connection con = ModSupportDb.getModSupportDb();
+//        try(Connection con = DbConnector.getConnectionForSchema(WurmDatabaseSchema("MODSUPPORT", "modsupport"));
+            PreparedStatement ps = con.prepareStatement("DELETE FROM TASKS WHERE TASKID=?"))
+        {
+            int id = 1;
+            ps.setLong(id++, taskId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            logger.warning("Exception while adding task to database: " + e.getMessage());
+            return false;
+        }
+        return true;
     }
 
     public TaskQueue getParent() {

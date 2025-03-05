@@ -2,7 +2,6 @@ package mod.maxammus.serfs.questions;
 
 import com.wurmonline.server.Players;
 import com.wurmonline.server.creatures.Creature;
-import com.wurmonline.server.creatures.Creatures;
 import com.wurmonline.server.items.Item;
 import com.wurmonline.server.items.ItemTemplate;
 import com.wurmonline.server.questions.Question;
@@ -152,15 +151,30 @@ public class ManageSerfQuestion implements ModQuestion {
             int groups = 0;
             if(!queueIdentity.equals("None"))
                 groups = groupSize.get(queueIdentity);
-            int takeContainerIndex = containers.indexOf(profile.getTakeContainer()) + groups + 1;
-            int dropContainerIndex = containers.indexOf(profile.getDropContainer()) + groups + 1;
-            //if indexOf returned -1
-            if(takeContainerIndex == groups)
-                takeContainerIndex = Math.max(0, containerDropdown.indexOf(profile.getTakeContainerGroup()));
-            if(dropContainerIndex == groups)
-                dropContainerIndex = Math.max(0, containerDropdown.indexOf(profile.getDropContainerGroup()));
+            int takeContainerIndex = containerDropdown.indexOf(profile.getTakeContainerGroup());
+            int dropContainerIndex = containerDropdown.indexOf(profile.getDropContainerGroup());
+            //not found in containerDropdown
+            if(takeContainerIndex == -1)
+                takeContainerIndex = containers.indexOf(profile.getTakeContainer()) + groups + 1;
+            if(dropContainerIndex == -1)
+                dropContainerIndex = containers.indexOf(profile.getDropContainer()) + groups + 1;
+            //not found in containers either
+            if(takeContainerIndex == groups) {
+                takeContainerIndex = 0;
+                profile.setTakeContainerGroup("");
+                profile.takeContainerId = NOID;
+            }
+            if(dropContainerIndex == groups) {
+                dropContainerIndex = 0;
+                profile.setDropContainerGroup("");
+                profile.dropContainerId = NOID;
+            }
 
-            int activeItemIndex = Math.max(0, itemDropdown.indexOf(profile.getActiveItemTemplateName()));
+            int activeItemIndex = itemDropdown.indexOf(profile.getActiveItemTemplateName());
+            if(activeItemIndex == -1) {
+                activeItemIndex = 0;
+                profile.setActiveItemTemplate(null);
+            }
             profileTable
                     .addButton("selected." + i, profile.isSelected() ? "Selected" : "Select", 44, 16, !profile.isSelected())
                     .addLabel("Queue:")
@@ -208,7 +222,7 @@ public class ManageSerfQuestion implements ModQuestion {
         Map<String, Integer> groups = new HashMap<>();
         ArrayList<String> containers = new ArrayList<>();
         taskProfile.getSelectedQueue().getContainers().forEach(item ->  {
-            if(!item.getDescription().equals("")) {
+            if(!item.getDescription().isEmpty()) {
                 String group = "Group: " + item.getDescription();
                 groups.put(group, groups.getOrDefault(group, 0) + 1);
                 containers.add(item.getActualName() + "(" + item.getDescription() + ")");
@@ -271,10 +285,8 @@ public class ManageSerfQuestion implements ModQuestion {
                     //Don't reopen window if made selection.
                     return;
                 } else if (key.startsWith("save")) {
-                    for (int index = 0; answers.getProperty("selectQueue." + index) != null; ++index) {
-                        TaskProfile profile = taskHandler.taskProfiles.get(index);
-                        saveProfile(answers, taskHandler, index, profile);
-                    }
+                    for (int index = 0; answers.getProperty("selectQueue." + index) != null; ++index)
+                        saveProfile(answers, taskHandler, index);
                 } else if (key.startsWith("editQueue.")) {
                     EditQueueQuestion.create(responder, question.getTarget(), Long.parseLong(id));
                     return;
@@ -308,7 +320,8 @@ public class ManageSerfQuestion implements ModQuestion {
         } catch (ArrayIndexOutOfBoundsException ignored) { }
     }
 
-    private void saveProfile(Properties answers, TaskHandler taskHandler, int index, TaskProfile profile) {
+    private void saveProfile(Properties answers, TaskHandler taskHandler, int index) {
+        TaskProfile profile = taskHandler.taskProfiles.get(index);
         //Reduce index by 1 for the added default option
         int dropdownIndex = Integer.parseInt(answers.getProperty("selectQueue." + index)) - 1;
         TaskQueue temp = ListUtil.getOrNull(taskHandler.getQueues(), dropdownIndex);

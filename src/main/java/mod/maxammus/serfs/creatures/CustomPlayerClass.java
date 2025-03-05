@@ -41,13 +41,13 @@ public class CustomPlayerClass extends Creature {
         super();
     }
 
-    public static void doLogIn(String name) {
+    public static Serf doLogIn(String name) {
         LoginHandler login = null;
         try {
             login = new LoginHandler(new DummySocketConnection());
         } catch (IOException e) {
             logger.info("Failed to create DummySocketConnection in doLogIn: " + e.getMessage());
-            return;
+            return null;
         }
         Server.getInstance().steamHandler.setIsPlayerAuthenticated("0");
         ByteBuffer bb = ByteBuffer.allocate(1024)
@@ -64,5 +64,6 @@ public class CustomPlayerClass extends Creature {
                 .put((byte) 1);
         bb.flip();
         login.reallyHandle(0, bb);
+        return (Serf)(Creature)Players.getInstance().getPlayerOrNull(name);
     }
 }

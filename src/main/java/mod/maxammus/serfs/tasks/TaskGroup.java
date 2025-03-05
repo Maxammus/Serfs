@@ -15,7 +15,7 @@ import java.util.logging.Logger;
 public class TaskGroup extends TaskQueue {
     private final Logger logger = Logger.getLogger(this.getClass().getName());
     public boolean groupwide = false;
-    public Map<Serf, List<Task>> groupwideTasks = new LinkedHashMap<>();
+    public Map<Long, List<Task>> groupwideTasks = new LinkedHashMap<>();
 
     public TaskGroup(long playerId, String name) {
         super(playerId, name);
@@ -37,7 +37,7 @@ public class TaskGroup extends TaskQueue {
         if(groupwide) {
             //Add the same task to all here so the map can be inverted later and keyed by task
             Task task = new Task(taskProfile, action, target);
-            for(Serf serf : groupwideTasks.keySet())
+            for(long serf : groupwideTasks.keySet())
                 groupwideTasks.get(serf).add(task);
         }
         else
@@ -47,8 +47,8 @@ public class TaskGroup extends TaskQueue {
     public List<Task> getAvailableTasks(Serf serf)
     {
         List<Task> toRet = new ArrayList<>();
-        List<Task> taskList = groupwideTasks.get(serf);
-        if(taskList != null && taskList.size() > 0) {
+        List<Task> taskList = groupwideTasks.get(serf.getWurmId());
+        if(taskList != null && !taskList.isEmpty()) {
             //Copy into a new task to give to serf
             Task templateTask = taskList.get(0);
             Task groupTask = new Task(templateTask);
@@ -72,19 +72,18 @@ public class TaskGroup extends TaskQueue {
     public boolean hasTasksFor(Serf serf) {
         if(super.hasTasksFor(serf))
             return true;
-        if(paused || groupwideTasks.get(serf) == null)
+        if(paused || groupwideTasks.get(serf.getWurmId()) == null)
             return false;
-        return groupwideTasks.get(serf).size() > 0;
+        return !groupwideTasks.get(serf.getWurmId()).isEmpty();
     }
 
     //Invert groupwideTasks map to handle it by Task for more easily displaying in the menu
-    public Map<Task, ArrayList<Serf>> getTaskMapForMenu() {
-        Map<Task, ArrayList<Serf>> map = new LinkedHashMap<>();
-        for(Serf serf : groupwideTasks.keySet())
-            for(Task task : groupwideTasks.get(serf)) {
-                if(!map.containsKey(task))
-                    map.put(task, new ArrayList<>());
-                map.get(task).add(serf);
+    public Map<Task, ArrayList<Long>> getTaskMapForMenu() {
+        Map<Task, ArrayList<Long>> map = new LinkedHashMap<>();
+        for(Long serfId : groupwideTasks.keySet())
+            for(Task task : groupwideTasks.get(serfId)) {
+                map.putIfAbsent(task, new ArrayList<>());
+                map.get(task).add(serfId);
             }
         return  map;
     }
@@ -103,15 +102,15 @@ public class TaskGroup extends TaskQueue {
     }
 
     @Override
-    public void addSerf(Serf serf) {
-        super.addSerf(serf);
-        groupwideTasks.putIfAbsent(serf, new ArrayList<>());
+    public void addSerf(long serfId) {
+        super.addSerf(serfId);
+        groupwideTasks.putIfAbsent(serfId, new ArrayList<>());
     }
 
     @Override
-    public void removeSerf(Serf serf) {
-        super.removeSerf(serf);
-        groupwideTasks.remove(serf);
+    public void removeSerf(long serfId) {
+        super.removeSerf(serfId);
+        groupwideTasks.remove(serfId);
     }
 
     public void reAddOrDelete(Task task) {
@@ -119,7 +118,7 @@ public class TaskGroup extends TaskQueue {
             //TODO: This will probably mess up if groupwide is toggled around.
             if (groupwide)
                 //add the task's template back to keep all tasks using the same template together
-                groupwideTasks.get(task.assigned)
+                groupwideTasks.get(task.assigned.getWurmId())
                         .add(task.templateTask);
             else
                 queue.add(task);

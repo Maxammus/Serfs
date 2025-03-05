@@ -1,3 +1,5 @@
+## Lore friendly automation!
+
 Add serfs to Wurm to do your bidding.  Configurable from a single serf mining to a horde of serfs capable of nearly anything a player can do shaping the land to your will.
 
 ## CURRENTLY IN ALPHA TESTING - Bugs will be present, stability not guaranteed.
@@ -30,3 +32,5 @@ _(Experimental)_ Chained area tasks take the first action in an area's queue as 
 
 Known issues:
 Cannot use items in your inventory to instruct serfs (Because the instructor only sees what serfs can do, and serfs cannot do things to your inventory items).
+
+_Thanks to Roe Bit for the inspiration and Tyoda, Arathok, Sindusk, Bdew (and probably every other modder) for publishing their work for me to peek at._
