@@ -28,6 +28,7 @@ import mod.maxammus.serfs.tasks.TaskQueue;
 import mod.maxammus.serfs.util.DBUtil;
 import mod.maxammus.serfs.util.ListUtil;
 import org.gotti.wurmunlimited.modloader.ReflectionUtil;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -45,9 +46,9 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
     public int numItemsToTake;
     long nextActionTime = 0;
     public boolean failedToCarry = false;
-    public Deque<String> log = new ArrayDeque<String>() {
+    public final Deque<String> log = new ArrayDeque<String>() {
         @Override
-        public boolean add(String o) {
+        public boolean add(@NotNull String o) {
             //If over max size remove oldest.
             if(size() > 30)
                 pollFirst();
@@ -103,7 +104,7 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
     //Called by actions to send action name/timer to player client
     //seems to be the most universal way to see when an action actually went through
     @Override
-    public void sendActionControl(final String actionString, final boolean start, final int timeLeft) {
+    public void sendActionControl(final @NotNull String actionString, final boolean start, final int timeLeft) {
         if(taskQueue != null && !taskQueue.queue.isEmpty() && start)
             taskQueue.queue.get(0).receivedActionTimer = true;
         VolaTile playerCurrentTile = this.getCurrentTile();
@@ -330,14 +331,6 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
             return null;
         serf.ownerId = ownerId;
         serf.setupQueue(ownerId);
-//        if(Serfs.hivemind) {
-//            try {
-//                Field skills = Skills.class.getDeclaredField("skills");
-//                ReflectionUtil.setPrivateField(serf.getSkills(), skills, TaskHandler.getTaskHandler(ownerId).getSkillMap());
-//            } catch (NoSuchFieldException | IllegalAccessException e) {
-//                logger.warning("Couldn't set hivemind skills for " + name);
-//            }
-//        }
         TaskHandler.getTaskHandler(ownerId).addSerf(serf);
         return serf;
     }

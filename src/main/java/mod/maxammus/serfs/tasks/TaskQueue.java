@@ -15,16 +15,14 @@ import java.util.logging.Logger;
 
 public class TaskQueue {
     private final Logger logger = Logger.getLogger(this.getClass().getName());
-    public ArrayList<Task> queue = new ArrayList<>();
-    public ArrayList<Long> containers = new ArrayList<>();
-    public ArrayList<Long> assignedSerfs = new ArrayList<>();
+    public final ArrayList<Task> queue = new ArrayList<>();
+    public final ArrayList<Long> containers = new ArrayList<>();
+    public final ArrayList<Long> assignedSerfs = new ArrayList<>();
     public boolean paused = false;
     public String name;
     public long queueId;
     public long playerId;
 
-    public TaskQueue() {
-    }
     public TaskQueue(long playerId, String name) {
         this.playerId = playerId;
         this.name = name;
@@ -208,7 +206,6 @@ public class TaskQueue {
             TaskHandler.taskQueues.remove(this.queueId);
             return true;
         } catch (Exception e) {
-            e.printStackTrace();
             logger.warning("Exception when deleting queue " + queueId + " - " + e.getMessage());
         }
         return false;

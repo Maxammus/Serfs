@@ -51,7 +51,7 @@ public class TaskArea extends TaskQueue implements CounterTypes {
         //Adjust angle to be more intuitive, round to nearest 90.
         this.rotation = Math.round((rotation % 360) / 90) * 90;
         //Convert to radians
-        this.rotation *= Math.PI / 180;
+        this.rotation *= (float) (Math.PI / 180);
         Vector2f offset = new Vector2f(width, length);
         offset.rotateAroundOrigin(this.rotation, true);
 

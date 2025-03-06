@@ -11,12 +11,11 @@ import javassist.expr.MethodCall;
 import javassist.expr.NewExpr;
 import org.gotti.wurmunlimited.modloader.classhooks.HookManager;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.logging.Logger;
 
 public class ReflectionUtility {
-    private static HashMap<String, String> classNames = new HashMap<>();
+    private static final HashMap<String, String> classNames = new HashMap<>();
     private static final Logger logger = Logger.getLogger(ReflectionUtility.class.getName());
     private static ClassPool classPool;
 
@@ -109,60 +108,5 @@ public class ReflectionUtility {
                 }
             }
         };
-    }
-
-    public static void replacePlayerWithCreatureInMethod(CtClass targetClass, String method) throws CannotCompileException {
-        logger.info("Replacing Player types with Creature in the bytecode of: " + method);
-        ConstPool constPool = targetClass.getClassFile().getConstPool();
-        try {
-            CtClass playerClass = classPool.getCtClass("com.wurmonline.server.players.Player");
-            CtClass creatureClass = classPool.getCtClass("com.wurmonline.server.creatures.Creature");
-            CtMethod ctMethodmethod = targetClass.getDeclaredMethod(method);
-            CodeIterator codeIterator = ctMethodmethod.getMethodInfo().getCodeAttribute().iterator();
-            while (codeIterator.hasNext()) {
-                int index = codeIterator.next();
-                int opcode = codeIterator.byteAt(index);
-                switch (opcode) {
-                    case Opcode.INVOKEVIRTUAL:
-                    case Opcode.INVOKESPECIAL:
-                    case Opcode.INVOKESTATIC:
-                        //Replace calls to Player methods with calls to Creature methods.
-                        int methodRefIndex = codeIterator.u16bitAt(index + 1);
-                        String className = constPool.getMethodrefClassName(methodRefIndex);
-                        if (className.equals(playerClass.getName())) {
-                            int newMethodRefIndex = constPool.addMethodrefInfo(
-                                    constPool.addClassInfo(creatureClass),
-                                    constPool.getMethodrefName(methodRefIndex),
-                                    constPool.getMethodrefType(methodRefIndex));
-                            codeIterator.write16bit(newMethodRefIndex, index + 1);
-                        }
-                        break;
-                    case Opcode.GETFIELD:
-                    case Opcode.GETSTATIC:
-                    case Opcode.PUTSTATIC:
-                    case Opcode.PUTFIELD:
-                        int fieldRef = codeIterator.u16bitAt(index + 1);
-                        //EDIT: chose to go with replacing accesses to Communicator.player with SerfCommunicator.serf
-                        //EDIT: as long as types are changed in bytecode, instead of this and creating/initializing a new field
-                        //Replace Player type fields with a Creature type field
-//                        if (constPool.getFieldrefType(fieldRef).equals(playerTypeDesc)) {
-//                            codeIterator.write16bit(fieldIndex, index + 1);
-//                        }
-                        //Replace access to fields from Player with fields from Creature
-                        if(constPool.getFieldrefClassName(fieldRef).equals(playerClass.getName())) {
-
-                            int newFieldRef = constPool.addFieldrefInfo(
-                                    constPool.addClassInfo(creatureClass),
-                                    constPool.getFieldrefName(fieldRef),
-                                    constPool.getFieldrefType(fieldRef));
-                            codeIterator.write16bit(newFieldRef, index + 1);
-                        }
-                        break;
-                }
-            }
-            ctMethodmethod.getMethodInfo().rebuildStackMap(classPool);
-        } catch (NotFoundException | BadBytecode e) {
-            throw new RuntimeException(e);
-        }
     }
 }

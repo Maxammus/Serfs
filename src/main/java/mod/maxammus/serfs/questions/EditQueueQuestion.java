@@ -22,10 +22,10 @@ import static mod.maxammus.serfs.util.BMLUtil.openBracket;
 public class EditQueueQuestion implements ModQuestion {
     static Logger logger = Logger.getLogger(EditQueueQuestion.class.getName());
     int height = 300;
-    long queueId;
-    TaskHandler taskHandler;
-    BMLBuilder bmlBuilder;
-    TaskQueue queue;
+    final long queueId;
+    final TaskHandler taskHandler;
+    final BMLBuilder bmlBuilder;
+    final TaskQueue queue;
 
     @SuppressWarnings("unused")
     public EditQueueQuestion(long queueId, Creature player) {

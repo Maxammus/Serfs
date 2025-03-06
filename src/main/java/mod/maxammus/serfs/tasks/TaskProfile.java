@@ -1,7 +1,6 @@
 package mod.maxammus.serfs.tasks;
 
 import com.wurmonline.server.Items;
-import com.wurmonline.server.Players;
 import com.wurmonline.server.items.Item;
 import com.wurmonline.server.items.ItemTemplate;
 import com.wurmonline.server.items.ItemTemplateFactory;

@@ -13,9 +13,9 @@ import static com.wurmonline.server.items.ItemTypes.*;
 
 
 public class SerfContract {
-    static Logger logger = Logger.getLogger(SerfContract.class.getName());
+    static final Logger logger = Logger.getLogger(SerfContract.class.getName());
     public static int templateId;
-    public static String name = "serf contract";
+    public static final String name = "serf contract";
 
     public static void createTemplate() {
         ItemTemplateBuilder itemBuilder = new ItemTemplateBuilder("serf.contract");

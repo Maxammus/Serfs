@@ -25,7 +25,6 @@ import org.gotti.wurmunlimited.modloader.interfaces.*;
 import org.gotti.wurmunlimited.modsupport.actions.ModActions;
 import org.gotti.wurmunlimited.modsupport.creatures.ModCreatures;
 
-import java.lang.invoke.MethodHandle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -36,7 +35,7 @@ import java.util.logging.Logger;
 public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable, ServerStartedListener, ItemTemplatesCreatedListener, ServerPollListener, PlayerLoginListener {
     private static final Logger logger = Logger.getLogger(Serfs.class.getName());
     private static ClassPool classPool;
-    private static final String version = "0.0.1";
+    private static final String version = "0.0.2";
 
     public static float startingSkillLevel = -1;
     public static int maxActiveSerfs = -1;
@@ -45,19 +44,15 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
     public static boolean tradeableSerfs = false;
     private static boolean addToTraders = true;
     public static boolean alwaysOn = false;
-    public static List<Short> whitelist = new ArrayList<>();
-    public static List<Short> blacklist = new ArrayList<>();
-    public static List<Short> autoDropWhenCannotCarryActions = new ArrayList<>();
+    public static final List<Short> whitelist = new ArrayList<>();
+    public static final List<Short> blacklist = new ArrayList<>();
+    public static final List<Short> autoDropWhenCannotCarryActions = new ArrayList<>();
     public static float expShare = 0;
     public static boolean hivemind = false;
-
     private static boolean serverStarted = false;
 
-    public static MethodHandle[] originalCreatureMethods;
-    public static List<CtMethod> playerOverriddenMethodsToPatch = new ArrayList<>(750);
     @Override
     public void configure(Properties properties) {
-
         try {
             startingSkillLevel = Float.parseFloat(properties.getProperty("startingSkillLevel", Float.toString(startingSkillLevel)));
             maxActiveSerfs = Integer.parseInt(properties.getProperty("maxActiveSerfs", Integer.toString(maxActiveSerfs)));
@@ -95,7 +90,7 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
 
     @Override
     public void preInit() {
-        logger.info("Serfs version " + version);
+        logger.info("Serfs version " + getVersion());
         ModActions.init();
         classPool = HookManager.getInstance().getClassPool();
     }
@@ -317,8 +312,7 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
 
     @Override
     public String getVersion() {
-        return WurmServerMod.super.getVersion();
-//        return version;
+        return version;
     }
 
     @Override

@@ -29,12 +29,12 @@ import java.util.List;
 import java.util.Properties;
 import java.util.logging.Logger;
 
-@SuppressWarnings("ununsed")
+@SuppressWarnings("unused")
 public class SerfCommunicator extends Communicator {
-    private Logger logger = Logger.getLogger(this.getClass().getName());
-    public Serf serf;
+    private final Logger logger = Logger.getLogger(this.getClass().getName());
+    public final Serf serf;
 
-    @SuppressWarnings("ununsed")
+    @SuppressWarnings("unused")
     public SerfCommunicator(Player serf, SocketConnection connection) {
         super(serf, connection);
         this.serf = (Serf)(Creature) serf;
@@ -206,7 +206,7 @@ public class SerfCommunicator extends Communicator {
     public void sendWindImpact(byte windimpact) {}
     public void sendRotate(long itemId, float rotation) {}
     public void sendWeather() {}
-    public void sendTileDoor(short tilex, short tiley, boolean openHole) throws IOException {}
+    public void sendTileDoor(short tilex, short tiley, boolean openHole) {}
     public void sendAddPa(String name, long wurmid) {}
     public void sendRemovePa(String name) {}
     public void sendAddSpellEffect(long id, String name, byte type, byte effectType, byte influence, int duration, float power) {}

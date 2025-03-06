@@ -13,9 +13,9 @@ import static com.wurmonline.server.items.ItemTypes.ITEM_TYPE_WOOD;
 
 
 public class SerfInstructor {
-    static Logger logger = Logger.getLogger(SerfInstructor.class.getName());
+    static final Logger logger = Logger.getLogger(SerfInstructor.class.getName());
     public static int templateId;
-    public static String name = "serf instructor";
+    public static final String name = "serf instructor";
 
     public static void createTemplate() {
         ItemTemplateBuilder itemBuilder = new ItemTemplateBuilder("serf.instructor");

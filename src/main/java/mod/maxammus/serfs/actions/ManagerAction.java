@@ -19,8 +19,8 @@ import java.util.logging.Logger;
 public class ManagerAction implements ModAction {
     private final Logger logger = Logger.getLogger(this.getClass().getName());
     private final String actionString = "Manage serfs";
-    short actionId;
-    public ActionEntry actionEntry;
+    final short actionId;
+    public final ActionEntry actionEntry;
 
     @SuppressWarnings("unused")
     public ManagerAction() {

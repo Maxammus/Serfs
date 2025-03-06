@@ -15,15 +15,15 @@ import java.util.logging.Logger;
 
 public class SerfQuestionQuestion implements ModQuestion {
     Logger logger = Logger.getLogger(this.getClass().getName());
-    int width;
-    int height;
-    float xLoc;
-    float yLoc;
-    boolean resizeable;
-    String content;
-    int r;
-    int g;
-    int b;
+    final int width;
+    final int height;
+    final float xLoc;
+    final float yLoc;
+    final boolean resizeable;
+    final String content;
+    final int r;
+    final int g;
+    final int b;
 
     public SerfQuestionQuestion( int width, int height, float xLoc, float yLoc, boolean resizeable, String content, int r, int g, int b) {
         this.width = width;

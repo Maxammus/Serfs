@@ -19,8 +19,8 @@ import java.util.logging.Logger;
 public class AddContainerToQueueAction implements ModAction {
     private final Logger logger = Logger.getLogger(this.getClass().getName());
     public static short actionId;
-    public ActionEntry actionEntry;
-    static String actionString = "Add container to queue";
+    public final ActionEntry actionEntry;
+    static final String actionString = "Add container to queue";
     public AddContainerToQueueAction() {
         actionId = (short) ModActions.getNextActionId();
         actionEntry = ActionEntry.createEntry(actionId, actionString, "adding", new int[]{ 0 });

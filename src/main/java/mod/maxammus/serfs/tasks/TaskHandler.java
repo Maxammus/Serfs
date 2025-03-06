@@ -31,19 +31,19 @@ import java.util.logging.Logger;
 
 //Stores and manages data relating to players
 public class TaskHandler {
-    static Logger logger = Logger.getLogger(TaskHandler.class.getName());
+    static final Logger logger = Logger.getLogger(TaskHandler.class.getName());
     public static long queueIdCounter = 0;
     public static long taskIdCounter = 0;
     public static long profileIdCounter = 0;
     public static final ArrayList<TaskHandler> taskHandlers = new ArrayList<>();
-    public long playerId;
-    public ArrayList<Serf> serfs = new ArrayList<>();
-    public ArrayList<TaskQueue> serfQueues = new ArrayList<>();
-    public ArrayList<TaskGroup> taskGroups = new ArrayList<>();
-    public ArrayList<TaskArea> taskAreas = new ArrayList<>();
-    public ArrayList<TaskProfile> taskProfiles = new ArrayList<>();
+    public final long playerId;
+    public final ArrayList<Serf> serfs = new ArrayList<>();
+    public final ArrayList<TaskQueue> serfQueues = new ArrayList<>();
+    public final ArrayList<TaskGroup> taskGroups = new ArrayList<>();
+    public final ArrayList<TaskArea> taskAreas = new ArrayList<>();
+    public final ArrayList<TaskProfile> taskProfiles = new ArrayList<>();
     Map<Integer, Skill> ownerSkills;
-    public static Map<Long, TaskQueue> taskQueues = new ConcurrentHashMap<>();
+    public static final Map<Long, TaskQueue> taskQueues = new ConcurrentHashMap<>();
 
     public TaskHandler(long playerId) {
         this.playerId = playerId;
@@ -82,7 +82,6 @@ public class TaskHandler {
                      "LEFT JOIN TaskAreas ON TaskQueues.QUEUEID = TaskAreas.QUEUEID");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
-                long queueid = rs.getLong("QUEUEID");
                 long playerid = rs.getLong("PLAYERID");
                 TaskHandler taskHandler = getTaskHandler(playerid);
                 TaskQueue taskQueue;
@@ -358,6 +357,7 @@ public class TaskHandler {
             serfs.add(serf);
     }
 
+    @SuppressWarnings("unused")
     public static Map<Integer, Skill> getSkillMapFor(long id) {
         //See if id has an owner and is a serf
         long owner = getOwnerOf(id);

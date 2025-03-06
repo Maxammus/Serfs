@@ -1,33 +1,24 @@
 package mod.maxammus.serfs.creatures;
 
 import com.wurmonline.communication.SocketConnection;
-import com.wurmonline.server.*;
+import com.wurmonline.server.LoginHandler;
+import com.wurmonline.server.Players;
+import com.wurmonline.server.Server;
+import com.wurmonline.server.Servers;
 import com.wurmonline.server.creatures.Creature;
-import com.wurmonline.server.epic.ValreiMapData;
-import com.wurmonline.server.intra.IntraServerConnection;
-import com.wurmonline.server.players.Player;
-import com.wurmonline.server.players.*;
-import com.wurmonline.server.skills.AffinitiesTimed;
-import com.wurmonline.server.steam.SteamId;
-import com.wurmonline.server.structures.BridgePart;
-import com.wurmonline.server.zones.VolaTile;
-import com.wurmonline.server.zones.Zones;
-import com.wurmonline.shared.constants.PlayerOnlineStatus;
+import com.wurmonline.server.players.PlayerInfo;
 import mod.maxammus.serfs.workarounds.DummySocketConnection;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import static com.wurmonline.server.LoginHandler.raiseFirstLetter;
 
 //Through use of reflection CustomPlayerClass actually extends Player during runtime
 
 //Using this class between Serf and Player mostly so hot reloads of Serf
 // aren't rejected by the IDE complaining about hierarchy changes.
 public class CustomPlayerClass extends Creature {
-    private static Logger logger = Logger.getLogger(CustomPlayerClass.class.getName());
+    private static final Logger logger = Logger.getLogger(CustomPlayerClass.class.getName());
 
     public CustomPlayerClass(PlayerInfo info, SocketConnection connection) throws Exception {
         //During runtime:
@@ -42,7 +33,7 @@ public class CustomPlayerClass extends Creature {
     }
 
     public static Serf doLogIn(String name) {
-        LoginHandler login = null;
+        LoginHandler login;
         try {
             login = new LoginHandler(new DummySocketConnection());
         } catch (IOException e) {

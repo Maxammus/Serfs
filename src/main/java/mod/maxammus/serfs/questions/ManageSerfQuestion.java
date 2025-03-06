@@ -26,12 +26,12 @@ import static mod.maxammus.serfs.util.BMLUtil.openBracket;
 
 public class ManageSerfQuestion implements ModQuestion {
 
-    static Logger logger = Logger.getLogger(ManageSerfQuestion.class.getName());
+    static final Logger logger = Logger.getLogger(ManageSerfQuestion.class.getName());
 
     //Store the list so a serf's inventory changing doesn't mess with the index of a selected item
-    Map<String, ArrayList<ItemTemplate>> itemTemplateMap = new HashMap<>();
-    Map<String, List<String>> containerDropdownMap = new HashMap<>();
-    Map<String, Integer> groupSize = new HashMap<>();
+    final Map<String, ArrayList<ItemTemplate>> itemTemplateMap = new HashMap<>();
+    final Map<String, List<String>> containerDropdownMap = new HashMap<>();
+    final Map<String, Integer> groupSize = new HashMap<>();
 
     TaskHandler taskHandler;
 

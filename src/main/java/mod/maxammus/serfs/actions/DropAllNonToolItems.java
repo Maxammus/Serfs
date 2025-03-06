@@ -17,8 +17,8 @@ import java.util.logging.Logger;
 public class DropAllNonToolItems implements ModAction {
     private final Logger logger = Logger.getLogger(this.getClass().getName());
     public static short actionId;
-    private static String actionString = "Drop all non-tools";
-    public ActionEntry actionEntry;
+    private static final String actionString = "Drop all non-tools";
+    public final ActionEntry actionEntry;
 
     @SuppressWarnings("unused")
     public DropAllNonToolItems() {

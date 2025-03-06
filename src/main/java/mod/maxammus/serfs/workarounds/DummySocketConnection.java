@@ -1,16 +1,13 @@
 package mod.maxammus.serfs.workarounds;
 
 import com.wurmonline.communication.SocketConnection;
-import com.wurmonline.communication.SocketServer;
-import com.wurmonline.server.Server;
 
 import java.io.IOException;
-import java.nio.Buffer;
 import java.nio.ByteBuffer;
 
 public class DummySocketConnection extends SocketConnection {
     int unflushedChecks = 0;
-    private final ByteBuffer byteBuffer = null;
+    private final ByteBuffer byteBuffer = ByteBuffer.allocate(0);
     public DummySocketConnection() throws IOException {
         super("", 0, false);
         //At runtime:
@@ -28,7 +25,7 @@ public class DummySocketConnection extends SocketConnection {
     }
 
     @Override
-    public void tick() throws IOException {
+    public void tick(){
     }
 
     public String getIp() { return "127.0.0.1"; }
@@ -36,8 +33,8 @@ public class DummySocketConnection extends SocketConnection {
     public int getUnflushed() { return 4096 - (++unflushedChecks % 100); }
     public void clearBuffer() { byteBuffer.clear(); }
     public boolean isConnected() { return true; }
-    public void flush() throws IOException { byteBuffer.flip(); }
-    public boolean tickWriting(long aNanosToWaitForLock) throws IOException { return true; }
+    public void flush() { byteBuffer.flip(); }
+    public boolean tickWriting(long aNanosToWaitForLock) { return true; }
     public void setLogin(boolean li) { }
     public void closeChannel() { }
     public void disconnect() { }

@@ -1,6 +1,5 @@
 package mod.maxammus.serfs.tasks;
 
-import com.wurmonline.math.TilePos;
 import com.wurmonline.math.Vector2f;
 import com.wurmonline.math.Vector3f;
 import com.wurmonline.mesh.MeshIO;
@@ -9,7 +8,6 @@ import com.wurmonline.server.*;
 import com.wurmonline.server.behaviours.*;
 import com.wurmonline.server.creatures.*;
 import com.wurmonline.server.creatures.ai.PathTile;
-import com.wurmonline.server.database.WurmDatabaseSchema;
 import com.wurmonline.server.items.*;
 import com.wurmonline.server.structures.NoSuchWallException;
 import com.wurmonline.server.zones.NoSuchZoneException;
@@ -18,7 +16,6 @@ import com.wurmonline.server.zones.Zones;
 import com.wurmonline.shared.constants.CounterTypes;
 import mod.maxammus.serfs.actions.DropAllNonToolItems;
 import mod.maxammus.serfs.creatures.Serf;
-import mod.maxammus.serfs.util.DBUtil;
 import mod.maxammus.serfs.util.ListUtil;
 import mod.maxammus.serfs.util.MiscUtil;
 import org.gotti.wurmunlimited.modloader.ReflectionUtil;
@@ -41,7 +38,7 @@ import static com.wurmonline.server.MiscConstants.NOID;
 import static com.wurmonline.server.behaviours.Actions.REPAIR;
 
 public class Task implements CounterTypes {
-    Logger logger = Logger.getLogger(this.getClass().getName());
+    final Logger logger = Logger.getLogger(this.getClass().getName());
 //    static Connection con = ModSupportDb.getModSupportDb();
     public short action;
     public Vector3f pos = new Vector3f();
@@ -225,12 +222,11 @@ public class Task implements CounterTypes {
                 activeItemId = tool.getWurmId();
             }
             BehaviourDispatcher.action(assigned, assigned.getCommunicator(), activeItemId, target, action);
-        } catch (FailedException | NoSuchItemException | NoSuchWallException  e) {
+        } catch (FailedException | NoSuchItemException | NoSuchWallException | NoSuchPlayerException |
+                 NoSuchCreatureException | NoSuchBehaviourException e) {
             //TODO: Higher priority channel for messages like these?
             finishTask("Couldn't start action - " + e.getMessage());
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
+        }finally {
             repeatedCount++;
         }
     }
@@ -305,7 +301,8 @@ public class Task implements CounterTypes {
                 BehaviourDispatcher.action(assigned, assigned.getCommunicator(), -1, targets, Actions.DROP_AS_PILE);
             } catch (FailedException | NoSuchBehaviourException | NoSuchPlayerException | NoSuchCreatureException |
                      NoSuchItemException e) {
-                e.printStackTrace();
+                logger.warning("Failed to dispatch action in handleMoveItems - " + e.getMessage());
+                finishTask("Couldn't drop items");
             }
             return;
         }
@@ -321,7 +318,8 @@ public class Task implements CounterTypes {
         try {
             ReflectionUtil.callPrivateMethod(assigned.getCommunicator(), ReflectionUtil.getMethod(Communicator.class, "reallyHandle_CMD_MOVE_INVENTORY"), byteBuffer);
         } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
-            throw new RuntimeException(e);
+            logger.warning("Failed to invoke reallyHandle_CMD_MOVE_INVENTORY");
+            finishTask("Couldn't move items");
         }
     }
 
@@ -690,8 +688,6 @@ public class Task implements CounterTypes {
             return true;
         } catch (NoSuchItemException | NoSuchCreatureException e) {
             finishTask("Target doesn't exist.");
-        } catch (Exception e) {
-            e.printStackTrace();
         }
         return false;
     }
@@ -732,7 +728,7 @@ public class Task implements CounterTypes {
                 ItemTemplate template = ItemTemplateFactory.getInstance().getTemplate(creation.getObjectCreated());
                 return "create " + template.getName();
             } catch (NoSuchEntryException | NoSuchTemplateException e) {
-                e.printStackTrace();
+                return "ERROR";
             }
         }
         else if(action > 8000) {
@@ -819,10 +815,6 @@ public class Task implements CounterTypes {
         }
     }
 
-//    public void addToUpdateBatch(PreparedStatement ps, int position, long queueId) throws SQLException {
-//        DBUtil.addStatementToBatch(ps, position, queueId, pos.x, pos.y, pos.z, layer, assigned != null ? assigned.getWurmId() : null, target, repeatedCount, started, initialized, takeContainerId, dropContainerId, taskId);
-//    }
-
     //should be called as it gets added to parent queue
     public void addToDB(long priority, long queueId) {
         if(inDb) {
@@ -875,7 +867,6 @@ public class Task implements CounterTypes {
 
     public boolean deleteFromDb() {
         try(Connection con = ModSupportDb.getModSupportDb();
-//        try(Connection con = DbConnector.getConnectionForSchema(WurmDatabaseSchema("MODSUPPORT", "modsupport"));
             PreparedStatement ps = con.prepareStatement("DELETE FROM TASKS WHERE TASKID=?"))
         {
             int id = 1;

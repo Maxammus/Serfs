@@ -15,7 +15,7 @@ import java.util.logging.Logger;
 public class TaskGroup extends TaskQueue {
     private final Logger logger = Logger.getLogger(this.getClass().getName());
     public boolean groupwide = false;
-    public Map<Long, List<Task>> groupwideTasks = new LinkedHashMap<>();
+    public final Map<Long, List<Task>> groupwideTasks = new LinkedHashMap<>();
 
     public TaskGroup(long playerId, String name) {
         super(playerId, name);

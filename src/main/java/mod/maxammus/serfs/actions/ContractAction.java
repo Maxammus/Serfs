@@ -1,6 +1,6 @@
 package mod.maxammus.serfs.actions;
 
-import com.wurmonline.server.*;
+import com.wurmonline.server.Items;
 import com.wurmonline.server.behaviours.Action;
 import com.wurmonline.server.behaviours.ActionEntry;
 import com.wurmonline.server.creatures.Creature;
@@ -9,7 +9,6 @@ import com.wurmonline.server.players.Player;
 import com.wurmonline.server.players.PlayerInfo;
 import com.wurmonline.server.players.PlayerInfoFactory;
 import mod.maxammus.serfs.Serfs;
-import mod.maxammus.serfs.creatures.CustomPlayerClass;
 import mod.maxammus.serfs.creatures.Serf;
 import mod.maxammus.serfs.items.SerfContract;
 import mod.maxammus.serfs.questions.SerfContractQuestion;
@@ -26,9 +25,9 @@ import java.util.logging.Logger;
 
 public class ContractAction implements ModAction {
     private final Logger logger = Logger.getLogger(this.getClass().getName());
-    private static String actionString = "Call serf";
-    short actionId;
-    public ActionEntry actionEntry;
+    private static final String actionString = "Call serf";
+    final short actionId;
+    public final ActionEntry actionEntry;
 
     public ContractAction() {
         actionId = (short) ModActions.getNextActionId();

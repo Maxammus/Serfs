@@ -8,21 +8,18 @@ import com.wurmonline.server.intra.IntraServerConnection;
 import com.wurmonline.server.players.Player;
 import com.wurmonline.server.questions.Question;
 import com.wurmonline.server.utils.BMLBuilder;
-import com.wurmonline.server.utils.StringUtil;
-import mod.maxammus.serfs.creatures.CustomPlayerClass;
 import mod.maxammus.serfs.creatures.Serf;
 import org.gotti.wurmunlimited.modsupport.questions.ModQuestion;
 import org.gotti.wurmunlimited.modsupport.questions.ModQuestions;
 
 import java.awt.*;
-import java.io.IOException;
-import java.util.*;
+import java.util.Properties;
 import java.util.logging.Logger;
 
 import static com.wurmonline.server.utils.BMLBuilder.createGenericBuilder;
 
 public class SerfContractQuestion implements ModQuestion {
-    static Logger logger = Logger.getLogger(SerfContractQuestion.class.getName());
+    static final Logger logger = Logger.getLogger(SerfContractQuestion.class.getName());
     boolean male;
 
     public SerfContractQuestion(boolean male) {
@@ -56,26 +53,25 @@ public class SerfContractQuestion implements ModQuestion {
         String name = answers.getProperty("name");
         male = answers.getProperty("sex").equals("male");
         if (LoginHandler.containsIllegalCharacters(name) || name.length() > 35) {
-            question.getResponder().getCommunicator().sendNormalServerMessage("Invalid name.");
-            create(question.getResponder(), question.getTarget(), male);
+            responder.getCommunicator().sendNormalServerMessage("Invalid name.");
+            create(responder, question.getTarget(), male);
             return;
         }
         name = "Serf " + name;
         if (Players.getInstance().doesPlayerNameExist(name)) {
-            question.getResponder().getCommunicator().sendNormalServerMessage("Serf with that name already exists.");
-            create(question.getResponder(), question.getTarget(), male);
+            responder.getCommunicator().sendNormalServerMessage("Serf with that name already exists.");
+            create(responder, question.getTarget(), male);
             return;
         }
-        Creature performer = question.getResponder();
-        Serf serf = Serf.createSerf(name, performer.getWurmId());
+        Serf serf = Serf.createSerf(name, responder.getWurmId());
         if(serf == null) {
             logger.warning("Failed to log in " + name);
             return;
         }
-        ((Player)(Creature)serf).setBlood(IntraServerConnection.calculateBloodFromKingdom(performer.getKingdomId()));
+        ((Player)(Creature)serf).setBlood(IntraServerConnection.calculateBloodFromKingdom(responder.getKingdomId()));
         //        serf.setName("Serf " + LoginHandler.raiseFirstLetter(serf.getName().substring(5)));
         serf.setSex((byte) (male ? 0 : 1), false);
-        serf.calledBy(question.getResponder());
+        serf.calledBy(responder);
         Items.destroyItem(question.getTarget());
     }
 }
