@@ -28,7 +28,6 @@ import mod.maxammus.serfs.tasks.TaskQueue;
 import mod.maxammus.serfs.util.DBUtil;
 import mod.maxammus.serfs.util.ListUtil;
 import org.gotti.wurmunlimited.modloader.ReflectionUtil;
-import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -48,7 +47,7 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
     public boolean failedToCarry = false;
     public final Deque<String> log = new ArrayDeque<String>() {
         @Override
-        public boolean add(@NotNull String o) {
+        public boolean add(String o) {
             //If over max size remove oldest.
             if(size() > 30)
                 pollFirst();
@@ -104,7 +103,7 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
     //Called by actions to send action name/timer to player client
     //seems to be the most universal way to see when an action actually went through
     @Override
-    public void sendActionControl(final @NotNull String actionString, final boolean start, final int timeLeft) {
+    public void sendActionControl(final String actionString, final boolean start, final int timeLeft) {
         if(taskQueue != null && !taskQueue.queue.isEmpty() && start)
             taskQueue.queue.get(0).receivedActionTimer = true;
         VolaTile playerCurrentTile = this.getCurrentTile();

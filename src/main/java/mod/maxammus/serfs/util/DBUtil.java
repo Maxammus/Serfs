@@ -65,7 +65,7 @@ public class DBUtil {
         tableCreation.put("Tasks", "CREATE TABLE IF NOT EXISTS Tasks (" +
                 "TASKID LONG PRIMARY KEY NOT NULL," +
                 "QUEUEID LONG NOT NULL, " +
-                "QUEUEPOSITION INT NOT NULL," +
+                "PRIORITY INT NOT NULL," +
                 "ACTION INT NOT NULL," +
                 "POSX REAL NOT NULL," +
                 "POSY REAL NOT NULL," +

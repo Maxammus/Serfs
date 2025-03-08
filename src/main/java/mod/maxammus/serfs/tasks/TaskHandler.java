@@ -54,7 +54,7 @@ public class TaskHandler {
         logger.info("Loading serf mod databases");
         long start = System.nanoTime();
         try (Connection dbcon = ModSupportDb.getModSupportDb();
-             PreparedStatement ps = dbcon.prepareStatement("SELECT MAX(TASKID) FROM TASKS");
+             PreparedStatement ps = dbcon.prepareStatement("SELECT MAX(TASKID) FROM Tasks");
              ResultSet rs = ps.executeQuery()) {
             if (rs.next())
                 taskIdCounter = rs.getLong("MAX(TASKID)");
@@ -147,7 +147,7 @@ public class TaskHandler {
             }
         } catch (Exception e) { throw new RuntimeException(e); }
 
-        tableName = "TASKS";
+        tableName = "Tasks";
         try (Connection dbcon = ModSupportDb.getModSupportDb();
              //Order by asc to put tasks back into the spot in queue they were saved in.
              PreparedStatement ps = dbcon.prepareStatement("SELECT * FROM " + tableName + " ORDER BY PRIORITY ASC;");

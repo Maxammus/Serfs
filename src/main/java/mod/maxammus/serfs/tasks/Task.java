@@ -828,7 +828,7 @@ public class Task implements CounterTypes {
         taskId = ++TaskHandler.taskIdCounter;
 
         try(Connection con = ModSupportDb.getModSupportDb();
-            PreparedStatement ps = con.prepareStatement("INSERT INTO TASKS " +
+            PreparedStatement ps = con.prepareStatement("INSERT INTO Tasks " +
                     "(PRIORITY,TASKID,QUEUEID,ACTION,POSX,POSY,POSZ,LAYER,ASSIGNED,TARGET,DOTIMES,WHILETIMERSHOWS,WHILEACTIONAVAILABLE,READD,ACTIVEITEMTEMPLATE,TARGETITEMTEMPLATE,TARGETCREATURETEMPLATE,PARENT,REPEATEDCOUNT,STARTED,INITIALIZED,TAKECONTAINER,DROPCONTAINER,TAKECONTAINERGROUP,DROPCONTAINERGROUP,EXACTTARGET) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"))
         {
             int id = 1;
@@ -867,7 +867,7 @@ public class Task implements CounterTypes {
 
     public boolean deleteFromDb() {
         try(Connection con = ModSupportDb.getModSupportDb();
-            PreparedStatement ps = con.prepareStatement("DELETE FROM TASKS WHERE TASKID=?"))
+            PreparedStatement ps = con.prepareStatement("DELETE FROM Tasks WHERE TASKID=?"))
         {
             int id = 1;
             ps.setLong(id++, taskId);
