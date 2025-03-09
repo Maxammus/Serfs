@@ -174,6 +174,8 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
         getStatus().setStunned(0.0f, false);
         trimAttackers(true);
         //TODO: another way to respawn
+        setTeleportPoints(getPosX(), getPosY(), getLayer(), getFloorLevel());
+        startTeleporting();
         respawn();
     }
 
@@ -302,8 +304,10 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
     }
 
     public void calledBy(Creature owner) {
-        getStatus().setPositionXYZ(owner.getPosX(), owner.getPosY(), owner.getPositionZ());
-        getStatus().setLayer(owner.getLayer());
+        setTeleportPoints(owner.getPosX(), owner.getPosY(), owner.getLayer(), owner.getFloorLevel());
+        startTeleporting();
+//        getStatus().setPositionXYZ(owner.getPosX(), owner.getPosY(), owner.getPositionZ());
+//        getStatus().setLayer(owner.getLayer());
         owner.getCommunicator().sendNormalServerMessage("You call " + getName());
         try {
             setKingdomId(owner.getKingdomId());
