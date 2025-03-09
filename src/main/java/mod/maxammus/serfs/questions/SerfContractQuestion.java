@@ -50,7 +50,7 @@ public class SerfContractQuestion implements ModQuestion {
     @Override
     public void answer(Question question, Properties answers) {
         Creature responder = question.getResponder();
-        String name = answers.getProperty("name");
+        String name = answers.getProperty("name").toLowerCase();
         male = answers.getProperty("sex").equals("male");
         if (LoginHandler.containsIllegalCharacters(name) || name.length() > 35) {
             responder.getCommunicator().sendNormalServerMessage("Invalid name.");
