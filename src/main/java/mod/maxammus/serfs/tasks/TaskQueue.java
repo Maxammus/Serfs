@@ -115,7 +115,7 @@ public class TaskQueue {
     public List<Task> getActiveTasks() {
         List<Task> toRet = new ArrayList<>();
         for(long serfId : assignedSerfs) {
-            ArrayList<Task> tasks = getSerf(serfId).taskQueue.queue;
+            ArrayList<Task> tasks = Serf.fromId(serfId).taskQueue.queue;
             if (tasks.size() > 0 && tasks.get(0).parentId == queueId)
                 toRet.add(tasks.get(0));
         }
@@ -234,9 +234,5 @@ public class TaskQueue {
             toRet.add(item);
         }
         return toRet;
-    }
-
-    public static Serf getSerf(long id) {
-        return (Serf)(Creature) Players.getInstance().getPlayerOrNull(id);
     }
 }

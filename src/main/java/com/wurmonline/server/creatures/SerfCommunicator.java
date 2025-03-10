@@ -24,7 +24,6 @@ import mod.maxammus.serfs.Serfs;
 import mod.maxammus.serfs.creatures.Serf;
 import mod.maxammus.serfs.questions.SerfQuestionQuestion;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Properties;
 import java.util.logging.Logger;
@@ -35,9 +34,9 @@ public class SerfCommunicator extends Communicator {
     public final Serf serf;
 
     @SuppressWarnings("unused")
-    public SerfCommunicator(Player serf, SocketConnection connection) {
-        super(serf, connection);
-        this.serf = (Serf)(Creature) serf;
+    public SerfCommunicator(Player player, SocketConnection connection) {
+        super(player, connection);
+        this.serf = Serf.fromPlayer(player);
         setInvulnerable(false);
     }
 

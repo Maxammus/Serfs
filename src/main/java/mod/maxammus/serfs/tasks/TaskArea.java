@@ -273,7 +273,7 @@ public class TaskArea extends TaskQueue implements CounterTypes {
         List<Task> toRet = super.getActiveTasks();
         for(TaskGroup group : assignedGroups)
             for(long serfId : group.assignedSerfs) {
-                ArrayList<Task> tasks = TaskQueue.getSerf(serfId).taskQueue.queue;
+                ArrayList<Task> tasks = Serf.fromId((serfId)).taskQueue.queue;
                 if (tasks.size() > 0 && tasks.get(0).parentId == queueId)
                     toRet.add(tasks.get(0));
             }

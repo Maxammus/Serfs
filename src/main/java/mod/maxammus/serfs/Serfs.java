@@ -349,7 +349,7 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
     @Override
     public void onPlayerLogout(Player player) {
         if((Creature)player instanceof Serf) {
-            Serf serf = (Serf)(Creature)player;
+            Serf serf = Serf.fromPlayer(player);
             TaskHandler.getTaskHandler(serf.ownerId).serfs.remove(serf);
         }
         else if(!alwaysOn)

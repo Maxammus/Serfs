@@ -49,7 +49,7 @@ public class SerfQuestionQuestion implements ModQuestion {
 
     @Override
     public void answer(Question question, Properties answers) {
-        Serf serf = (Serf)Creatures.getInstance().getCreatureOrNull(question.getTarget());
+        Serf serf = Serf.fromId(question.getTarget());
         if(serf != null)
             try {
                 serf.handleOwnerQuestionResponse(answers);

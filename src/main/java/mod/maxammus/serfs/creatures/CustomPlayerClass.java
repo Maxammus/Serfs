@@ -55,6 +55,6 @@ public class CustomPlayerClass extends Creature {
                 .put((byte) 1);
         bb.flip();
         login.reallyHandle(0, bb);
-        return (Serf)(Creature)Players.getInstance().getPlayerOrNull(name);
+        return Serf.fromPlayer(Players.getInstance().getPlayerOrNull(name));
     }
 }

@@ -293,7 +293,7 @@ public class ManageSerfQuestion implements ModQuestion {
                 } else if (key.startsWith("getContract.")) {
                     Serf serf;
                     try {
-                        serf = (Serf) (Creature) Players.getInstance().getPlayerOrNull(Long.parseLong(id));
+                        serf = Serf.fromId(Long.parseLong(id));
                         if (serf != null) {
                             if (serf.ownerId != responder.getWurmId())
                                 logger.severe(responder.getName() + " tried to get the contract of someone else's serf!");

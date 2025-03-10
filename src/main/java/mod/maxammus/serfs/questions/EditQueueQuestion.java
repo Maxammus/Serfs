@@ -79,7 +79,7 @@ public class EditQueueQuestion implements ModQuestion {
 
         if(queueIdentity.startsWith("Serf ")) {
             rightSide.addLabel("Log:", null, BMLBuilder.TextType.BOLD, Color.white);
-            Iterator<String> it = TaskQueue.getSerf(queue.assignedSerfs.get(0)).log.descendingIterator();
+            Iterator<String> it = Serf.fromId((queue.assignedSerfs.get(0))).log.descendingIterator();
             while(it.hasNext()) {
                 String logMessage = it.next();
                 rightSide.addLabel(logMessage);

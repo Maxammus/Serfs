@@ -119,7 +119,6 @@ public class TaskHandler {
                 long serfid = rs.getLong("SERFID");
                 long queueid = rs.getLong("QUEUEID");
                 TaskQueue taskQueue = taskQueues.get(queueid);
-//                Serf serf = (Serf)(Creature) Players.getInstance().getPlayerOrNull(serfid);
                 taskQueue.assignedSerfs.add(serfid);
                 if (taskQueue instanceof TaskGroup)
                     ((TaskGroup) taskQueue).groupwideTasks.put(serfid, new ArrayList<>());

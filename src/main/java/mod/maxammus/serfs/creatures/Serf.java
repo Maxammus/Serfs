@@ -28,6 +28,7 @@ import mod.maxammus.serfs.tasks.TaskQueue;
 import mod.maxammus.serfs.util.DBUtil;
 import mod.maxammus.serfs.util.ListUtil;
 import org.gotti.wurmunlimited.modloader.ReflectionUtil;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -63,6 +64,13 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
     //Load existing serf
     public Serf(PlayerInfo info, SocketConnection connection) throws Exception {
         super(info, connection);
+    }
+
+    public static Serf fromId(long target) {
+        return (Serf)(Creature) Players.getInstance().getPlayerOrNull(target);
+    }
+    public static Serf fromPlayer(Player player) {
+        return (Serf)(Creature) player;
     }
 
     public void pollTasks() {
@@ -141,9 +149,13 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
     }
 
     public void handleOwnerQuestionResponse(Properties properties) {
-        Question question = ((Player)(Creature)this).question;
+        Question question = toPlayer().question;
         question.answer(properties);
         Questions.removeQuestion(question);
+    }
+
+    private @NotNull Player toPlayer() {
+        return (Player) (Creature) this;
     }
 
     //Change serf speed
@@ -195,7 +207,7 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
         serfContract.setDescription(name);
         owner.getInventory().insertItem(serfContract, true);
 
-        ((Player)(Creature)this).setLink(false);
+        toPlayer().setLink(false);
         log.clear();
         owner.getCommunicator().sendNormalServerMessage("You get the contract for " + getName() + "." );
         return true;
