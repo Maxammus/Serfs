@@ -2,7 +2,6 @@ package mod.maxammus.serfs.questions;
 
 import com.wurmonline.server.Players;
 import com.wurmonline.server.creatures.Creature;
-import com.wurmonline.server.creatures.Creatures;
 import com.wurmonline.server.players.Player;
 import com.wurmonline.server.questions.Question;
 import mod.maxammus.serfs.creatures.Serf;
@@ -44,17 +43,14 @@ public class SerfQuestionQuestion implements ModQuestion {
     }
     @Override
     public void sendQuestion(Question question) {
-        question.getResponder().getCommunicator().sendBml(width, height, xLoc, yLoc, resizeable, true, content, r, g, b, question.getTitle());
+        String send = content.replaceFirst("\\{id=\"id\";text=\"\\d+\"}", "{id=\"id\";text=\"" + question.getId() + "\"}");
+        question.getResponder().getCommunicator().sendBml(width, height, xLoc, yLoc, resizeable, true, send, r, g, b, question.getTitle());
     }
 
     @Override
     public void answer(Question question, Properties answers) {
         Serf serf = Serf.fromId(question.getTarget());
         if(serf != null)
-            try {
-                serf.handleOwnerQuestionResponse(answers);
-            } catch (ClassCastException e) {
-                question.getResponder().getCommunicator().sendNormalServerMessage("Question does not currently work with serfs.");
-            }
+            serf.handleOwnerQuestionResponse(answers);
     }
 }
