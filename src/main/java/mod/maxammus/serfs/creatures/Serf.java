@@ -269,8 +269,10 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
             taskQueue.addToDb(ownerId);
             TaskHandler.taskQueues.put(taskQueue.queueId, taskQueue);
         }
-        else
+        else if(taskQueue.playerId != ownerId){
+            taskQueue.playerId = ownerId;
             DBUtil.executeSingleStatement("UPDATE TaskQueues SET PLAYERID=? WHERE QUEUEID=?", ownerId, taskQueue.queueId);
+        }
     }
 
     @Override
