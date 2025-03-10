@@ -14,6 +14,7 @@ import com.wurmonline.server.items.ItemFactory;
 import com.wurmonline.server.players.*;
 import com.wurmonline.server.questions.Question;
 import com.wurmonline.server.questions.Questions;
+import com.wurmonline.server.skills.Skills;
 import com.wurmonline.server.villages.NoSuchRoleException;
 import com.wurmonline.server.villages.VillageRole;
 import com.wurmonline.server.zones.NoSuchZoneException;
@@ -31,6 +32,7 @@ import org.gotti.wurmunlimited.modloader.ReflectionUtil;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
@@ -265,13 +267,11 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
         taskQueue = ListUtil.findOrNull(taskHandler.serfQueues, tq -> tq.name.equals(name));
         if(taskQueue == null) {
             taskQueue = new TaskQueue(ownerId, name);
-            taskQueue.addSerf(getWurmId());
             taskQueue.addToDb(ownerId);
-            TaskHandler.taskQueues.put(taskQueue.queueId, taskQueue);
-        }
-        else if(taskQueue.playerId != ownerId){
+            taskQueue.addSerf(getWurmId());
             taskQueue.playerId = ownerId;
-            DBUtil.executeSingleStatement("UPDATE TaskQueues SET PLAYERID=? WHERE QUEUEID=?", ownerId, taskQueue.queueId);
+            TaskHandler.taskQueues.put(taskQueue.queueId, taskQueue);
+            taskHandler.serfQueues.add(taskQueue);
         }
     }
 
@@ -348,6 +348,13 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
             return null;
         serf.ownerId = ownerId;
         serf.setupQueue(ownerId);
+        if(Serfs.hivemind)
+            try {
+                Field skillTree = ReflectionUtil.getField(Skills.class, "skills");
+                ReflectionUtil.setPrivateField(serf.skills, skillTree, TaskHandler.getSkillMapFor(ownerId));
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                logger.warning("Couldn't set hivemind skills for " + name);
+            }
         TaskHandler.getTaskHandler(ownerId).addSerf(serf);
         return serf;
     }

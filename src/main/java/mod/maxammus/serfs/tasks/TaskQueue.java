@@ -140,8 +140,8 @@ public class TaskQueue {
     }
 
     public void removeSerf(long id) {
-        DBUtil.executeSingleStatement("DELETE FROM SerfAssignments WHERE SERFID=? AND QUEUEID=?", id, queueId);
-        assignedSerfs.remove(id);
+        if(assignedSerfs.remove(id))
+            DBUtil.executeSingleStatement("DELETE FROM SerfAssignments WHERE SERFID=? AND QUEUEID=?", id, queueId);
     }
 
     public void reAddOrDelete(Task task) {
@@ -189,8 +189,8 @@ public class TaskQueue {
         }
     }
 
-    public void addToDb(long playerId) {
-        DBUtil.executeSingleStatement("INSERT INTO TaskQueues (QUEUEID, PLAYERID, NAME, PAUSED) VALUES (?,?,?,?)", queueId, playerId, this.name, paused);
+    public boolean addToDb(long playerId) {
+        return DBUtil.executeSingleStatement("INSERT INTO TaskQueues (QUEUEID, PLAYERID, NAME, PAUSED) VALUES (?,?,?,?)", queueId, playerId, this.name, paused);
     }
 
     public boolean deleteFromDb() {

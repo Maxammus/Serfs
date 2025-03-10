@@ -136,8 +136,10 @@ public class TaskGroup extends TaskQueue {
     }
 
     @Override
-    public void addToDb(long playerId) {
-        super.addToDb(playerId);
-        DBUtil.executeSingleStatement("INSERT INTO TaskGroups (QUEUEID, GROUPWIDE) VALUES (?,?)", queueId, groupwide);
+    public boolean addToDb(long playerId) {
+        if(super.addToDb(playerId)
+                && DBUtil.executeSingleStatement("INSERT INTO TaskGroups (QUEUEID, GROUPWIDE) VALUES (?,?)", queueId, groupwide))
+            return true;
+        return false;
     }
 }

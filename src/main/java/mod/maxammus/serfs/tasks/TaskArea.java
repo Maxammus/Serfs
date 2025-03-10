@@ -315,10 +315,12 @@ public class TaskArea extends TaskQueue implements CounterTypes {
     }
 
     @Override
-    public void addToDb(long playerId) {
-        super.addToDb(playerId);
-        DBUtil.executeSingleStatement( "INSERT INTO TaskAreas (" +
+    public boolean addToDb(long playerId) {
+        if(super.addToDb(playerId)
+                && DBUtil.executeSingleStatement( "INSERT INTO TaskAreas (" +
                 "QUEUEID, TILEX, TILEY, LENGTH, WIDTH, FLOOR, LAYER, COUNTER, ROTATION, CHAINEDTASKS, PRECHECKTASKS) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                queueId, tileX, tileY, length, width, floor, layer, counter, rotation, chainedTasks, precheckTasks);
+                queueId, tileX, tileY, length, width, floor, layer, counter, rotation, chainedTasks, precheckTasks))
+            return true;
+        return false;
     }
 }

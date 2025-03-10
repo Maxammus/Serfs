@@ -205,8 +205,10 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
             }
             if(hivemind) {
                 logger.info("Setting up hivemind");
+                //Get player's skills from TaskHandler in case online serfs already have the owner's skilltree loaded
                 ReflectionUtility.replaceMethodCall("com.wurmonline.server.skills.DbSkills", "load", null,
-                        "getPlayerDbCon", "{ skills = TaskHandler.getSkillMapFor(id);" +
+                        "getPlayerDbCon", "{ if(Players.getInstance().getPlayerOrNull(id) instanceof Serf) return;" +
+                                "skills = TaskHandler.getSkillMapFor(id);" +
                                 "if(!skills.isEmpty()) return;" +
                                 "else $_ = $proceed();}");
 

@@ -342,6 +342,7 @@ public class TaskHandler {
         while(!serf.taskQueue.queue.isEmpty())
          serf.taskQueue.removeTask(serf.taskQueue.queue.get(0));
         serf.taskQueue.deleteFromDb();
+        serfQueues.remove(serf.taskQueue);
         for (TaskQueue queue : taskGroups)
             queue.removeSerf(serf.getWurmId());
         for (TaskQueue queue : taskAreas)
@@ -358,12 +359,7 @@ public class TaskHandler {
 
     @SuppressWarnings("unused")
     public static Map<Integer, Skill> getSkillMapFor(long id) {
-        //See if id has an owner and is a serf
-        long owner = getOwnerOf(id);
-        if(owner == -10)
-            //id is a player
-            owner = id;
-        TaskHandler taskHandler = TaskHandler.getTaskHandler(owner);
+        TaskHandler taskHandler = TaskHandler.getTaskHandler(id);
         if(taskHandler.ownerSkills == null) {
             Skills skills = SkillsFactory.createSkills(id);
             try {
