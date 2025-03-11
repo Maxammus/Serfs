@@ -104,7 +104,7 @@ public class TaskQueue {
     }
 
     public void stop(int id) {
-        for(Task task: getActiveTasks()) {
+        for(Task task: getActiveTasks(true)) {
             if(task.taskId == id) {
                 task.finishTask("Told to stop");
                 break;
@@ -112,12 +112,16 @@ public class TaskQueue {
         }
     }
 
-    public List<Task> getActiveTasks() {
+    public List<Task> getActiveTasks(boolean onlyFirst) {
         List<Task> toRet = new ArrayList<>();
         for(long serfId : assignedSerfs) {
             ArrayList<Task> tasks = Serf.fromId(serfId).taskQueue.queue;
-            if (tasks.size() > 0 && tasks.get(0).parentId == queueId)
-                toRet.add(tasks.get(0));
+            for(Task task : tasks) {
+                if (task.parentId == queueId)
+                    toRet.add(task);
+                if(onlyFirst)
+                    break;
+            }
         }
         return toRet;
     }
@@ -132,16 +136,18 @@ public class TaskQueue {
     }
 
 
-    public void addSerf(long id) {
+    public void addSerf(long id, boolean database) {
         if(!assignedSerfs.contains(id)) {
-            DBUtil.executeSingleStatement("INSERT INTO SerfAssignments (SERFID,QUEUEID) VALUES (?,?)", id, queueId);
+            if(database)
+                DBUtil.executeSingleStatement("INSERT INTO SerfAssignments (SERFID,QUEUEID) VALUES (?,?)", id, queueId);
             assignedSerfs.add(id);
         }
     }
 
-    public void removeSerf(long id) {
+    public void removeSerf(long id, boolean database) {
         if(assignedSerfs.remove(id))
-            DBUtil.executeSingleStatement("DELETE FROM SerfAssignments WHERE SERFID=? AND QUEUEID=?", id, queueId);
+            if(database)
+                DBUtil.executeSingleStatement("DELETE FROM SerfAssignments WHERE SERFID=? AND QUEUEID=?", id, queueId);
     }
 
     public void reAddOrDelete(Task task) {
@@ -171,7 +177,7 @@ public class TaskQueue {
                     ps.setLong(1, id);
                     ps.setLong(2, queueId);
                     ps.addBatch();
-                    removeSerf(id);
+                    removeSerf(id, false);
                     i--;
                 }
             }
@@ -181,7 +187,7 @@ public class TaskQueue {
                     ps2.setLong(1, serfid);
                     ps2.setLong(2, queueId);
                     ps2.addBatch();
-                    addSerf(serfid);
+                    addSerf(serfid, false);
                 }
             ps2.executeBatch();
         } catch (SQLException e) {
@@ -204,6 +210,8 @@ public class TaskQueue {
             ps.setLong(1, queueId);
             ps.execute();
             TaskHandler.taskQueues.remove(this.queueId);
+            for(Task task : getActiveTasks(false))
+                task.finishTask("Queue removed.");
             return true;
         } catch (Exception e) {
             logger.warning("Exception when deleting queue " + queueId + " - " + e.getMessage());

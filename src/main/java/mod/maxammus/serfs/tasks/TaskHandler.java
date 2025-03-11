@@ -15,6 +15,7 @@ import com.wurmonline.server.skills.Skill;
 import com.wurmonline.server.skills.Skills;
 import com.wurmonline.server.skills.SkillsFactory;
 import com.wurmonline.server.structures.NoSuchWallException;
+import com.wurmonline.shared.constants.CounterTypes;
 import mod.maxammus.serfs.Serfs;
 import mod.maxammus.serfs.creatures.Serf;
 import mod.maxammus.serfs.util.ListUtil;
@@ -37,13 +38,14 @@ public class TaskHandler {
     public static long profileIdCounter = 0;
     public static final ArrayList<TaskHandler> taskHandlers = new ArrayList<>();
     public final long playerId;
-    public final ArrayList<Serf> serfs = new ArrayList<>();
+    public final ArrayList<Serf> onlineSerfs = new ArrayList<>();
     public final ArrayList<TaskQueue> serfQueues = new ArrayList<>();
     public final ArrayList<TaskGroup> taskGroups = new ArrayList<>();
     public final ArrayList<TaskArea> taskAreas = new ArrayList<>();
     public final ArrayList<TaskProfile> taskProfiles = new ArrayList<>();
-    Map<Integer, Skill> ownerSkills;
+    public Skills ownerSkills;
     public static final Map<Long, TaskQueue> taskQueues = new ConcurrentHashMap<>();
+    public static final Map<Long, Long> serfsToOwners = new ConcurrentHashMap<>();
 
     public TaskHandler(long playerId) {
         this.playerId = playerId;
@@ -180,7 +182,7 @@ public class TaskHandler {
     }
 
     public void logoutSerfs() {
-        for(Serf serf : serfs)
+        for(Serf serf : onlineSerfs)
             ((Player)(Creature)serf).setLink(false);
     }
 
@@ -196,7 +198,7 @@ public class TaskHandler {
     public static void poll() {
         for (TaskHandler taskHandler : taskHandlers) {
             long start = System.currentTimeMillis();
-            for (Serf serf : taskHandler.serfs) {
+            for (Serf serf : taskHandler.onlineSerfs) {
                 serf.pollTasks();
             }
             if(System.currentTimeMillis() - start > Constants.lagThreshold)
@@ -223,6 +225,10 @@ public class TaskHandler {
             Creature creature = Creatures.getInstance().getCreatureOrNull(target);
             if (creature != null)
                 targetPos = creature.getPos3f();
+        } else if (type == CounterTypes.COUNTER_TYPE_PLAYERS) {
+            Player player = Players.getInstance().getPlayerOrNull(target);
+            if (player != null)
+                targetPos = player.getPos3f();
         } else if (Task.isTileType(type))
             //TODO: z probably needs tile height added to have correct world position
             targetPos = new Vector3f(Tiles.decodeTileX(target), Tiles.decodeTileY(target), Tiles.decodeHeightOffset(target)).mult(4);
@@ -327,7 +333,7 @@ public class TaskHandler {
         ArrayList<TaskQueue> toReturn = new ArrayList<>();
         toReturn.addAll(taskGroups);
         toReturn.addAll(taskAreas);
-        for (Serf serf : serfs)
+        for (Serf serf : onlineSerfs)
             toReturn.add(serf.taskQueue);
         return toReturn;
     }
@@ -344,39 +350,47 @@ public class TaskHandler {
         serf.taskQueue.deleteFromDb();
         serfQueues.remove(serf.taskQueue);
         for (TaskQueue queue : taskGroups)
-            queue.removeSerf(serf.getWurmId());
+            queue.removeSerf(serf.getWurmId(), true);
         for (TaskQueue queue : taskAreas)
-            queue.removeSerf(serf.getWurmId());
+            queue.removeSerf(serf.getWurmId(), true);
         if(serf.citizenVillage != null)
             serf.citizenVillage.removeCitizen(serf);
-        serfs.remove(serf);
+        removeSerf(serf);
     }
 
     public void addSerf(Serf serf) {
-        if(!serfs.contains(serf))
-            serfs.add(serf);
+        if(!onlineSerfs.contains(serf))
+            onlineSerfs.add(serf);
+        serfsToOwners.put(serf.getWurmId(), serf.ownerId);
     }
 
     @SuppressWarnings("unused")
     public static Map<Integer, Skill> getSkillMapFor(long id) {
         TaskHandler taskHandler = TaskHandler.getTaskHandler(id);
         if(taskHandler.ownerSkills == null) {
-            Skills skills = SkillsFactory.createSkills(id);
             try {
-                taskHandler.ownerSkills = skills.getSkillTree();
+                Skills skills = SkillsFactory.createSkills(id);
+                skills.load();
+                taskHandler.ownerSkills = skills;
             } catch (Exception e) {
                 taskHandler.ownerSkills = null;
                 logger.warning("Failed to initially load hivemind skill for owner " + id);
+                return null;
             }
         }
-        return taskHandler.ownerSkills;
+        return taskHandler.ownerSkills.getSkillTree();
     }
 
-    public static long getOwnerOf(long id) {
-        for(TaskHandler taskHandler : taskHandlers)
-            for(TaskQueue taskQueue : taskHandler.serfQueues)
-                if(taskQueue.assignedSerfs.contains(id))
-                    return taskHandler.playerId;
-        return -10;
+//    @SuppressWarnings("unused")
+//    public static Skill getSkillFor(long serfId, int skillNum) {
+//        long ownerId = serfsToOwners.get(serfId);
+//
+//        return getSkillMapFor(ownerId)
+//                .get(skillNum);
+//    }
+
+    public void removeSerf(Serf serf) {
+        onlineSerfs.remove(serf);
+        serfsToOwners.remove(serf.getWurmId());
     }
 }

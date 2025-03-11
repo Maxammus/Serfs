@@ -1,6 +1,5 @@
 package mod.maxammus.serfs.questions;
 
-import com.wurmonline.server.Players;
 import com.wurmonline.server.creatures.Creature;
 import com.wurmonline.server.items.Item;
 import com.wurmonline.server.items.ItemTemplate;
@@ -66,7 +65,7 @@ public class ManageSerfQuestion implements ModQuestion {
     private void addSerfs() {
         bmlBuilder.addLabel("Serfs:", null, TextType.BOLD, Color.white);
         BMLBuilder serfTable = createTable(5);
-        taskHandler.serfs.forEach(serf ->
+        taskHandler.onlineSerfs.forEach(serf ->
                 serfTable
                        .addButton("editQueue." + serf.taskQueue.queueId, "Manage", 45, 16, true)
                        .addLabel(serf.getName())

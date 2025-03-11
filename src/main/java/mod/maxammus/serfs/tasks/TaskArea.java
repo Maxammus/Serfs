@@ -269,13 +269,19 @@ public class TaskArea extends TaskQueue implements CounterTypes {
     public String getIdentity() {
         return "Area: " + name;
     }
-    public List<Task> getActiveTasks() {
-        List<Task> toRet = super.getActiveTasks();
+
+    @Override
+    public List<Task> getActiveTasks(boolean onlyFirst) {
+        List<Task> toRet = super.getActiveTasks(onlyFirst);
         for(TaskGroup group : assignedGroups)
             for(long serfId : group.assignedSerfs) {
                 ArrayList<Task> tasks = Serf.fromId((serfId)).taskQueue.queue;
-                if (tasks.size() > 0 && tasks.get(0).parentId == queueId)
-                    toRet.add(tasks.get(0));
+                for(Task task : tasks) {
+                    if (task.parentId == queueId)
+                        toRet.add(tasks.get(0));
+                    if(onlyFirst)
+                        break;
+                }
             }
         return toRet;
     }

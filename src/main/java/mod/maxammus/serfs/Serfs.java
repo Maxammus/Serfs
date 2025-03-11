@@ -8,6 +8,7 @@ import com.wurmonline.server.items.Item;
 import com.wurmonline.server.players.Player;
 import javassist.*;
 import javassist.expr.ExprEditor;
+import javassist.expr.FieldAccess;
 import javassist.expr.MethodCall;
 import mod.maxammus.serfs.actions.AddContainerToQueueAction;
 import mod.maxammus.serfs.actions.ContractAction;
@@ -20,6 +21,7 @@ import mod.maxammus.serfs.tasks.TaskHandler;
 import mod.maxammus.serfs.tasks.TaskProfile;
 import mod.maxammus.serfs.util.DBUtil;
 import mod.maxammus.serfs.util.ReflectionUtility;
+import org.gotti.wurmunlimited.modloader.ReflectionUtil;
 import org.gotti.wurmunlimited.modloader.classhooks.HookManager;
 import org.gotti.wurmunlimited.modloader.interfaces.*;
 import org.gotti.wurmunlimited.modsupport.actions.ModActions;
@@ -36,6 +38,7 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
     private static final Logger logger = Logger.getLogger(Serfs.class.getName());
     private static ClassPool classPool;
     private static final String version = "0.0.2";
+    public static boolean debug = true;
 
     public static float startingSkillLevel = -1;
     public static int maxActiveSerfs = -1;
@@ -189,29 +192,65 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
                             "if(!Serfs.alwaysOn && !(player instanceof Serf))" +
                             "   TaskHandler.getTaskHandler(player.getWurmId()).loginSerfs();"));
 
-            if(expShare > 0) {
-                logger.info("Enabling owners gaining skills from serfs");
-                //(double advanceMultiplicator, final boolean decay, float times, final boolean useNewSystem, final double skillDivider)
-                classPool.getCtClass("com.wurmonline.server.skills.Skill")
-                        .getMethod("alterSkill", "(DZFZD)V")
-                        .insertBefore(ReflectionUtility.convertToFullClassNames(
-                                "{ Player player = Players.getInstance().getPlayer(parent.getId());" +
-                                    "if(player instanceof Serf) {" +
-                                    "   Player owner = Players.getInstance().getPlayerOrNull(((Serf)player).ownerId);" +
-                                    "   if(owner != null)" +
-                                    "       owner.getSkills().getSkillOrLearn(number).alterSkill($1 * " + expShare + ", $2, $3, $4, $5);" +
-                                    "}}"
-                        ));
-            }
-            if(hivemind) {
-                logger.info("Setting up hivemind");
-                //Get player's skills from TaskHandler in case online serfs already have the owner's skilltree loaded
-                ReflectionUtility.replaceMethodCall("com.wurmonline.server.skills.DbSkills", "load", null,
-                        "getPlayerDbCon", "{ if(Players.getInstance().getPlayerOrNull(id) instanceof Serf) return;" +
-                                "skills = TaskHandler.getSkillMapFor(id);" +
-                                "if(!skills.isEmpty()) return;" +
-                                "else $_ = $proceed();}");
+            if(expShare > 0 || hivemind) {
+                //Add field to quickly access owner's copy of the skill
+                CtClass skillClass = classPool.getCtClass("com.wurmonline.server.skills.Skill");
+                skillClass.addField(new CtField(skillClass, "ownerSkill", skillClass));
+                //Setting initial ownerSkill for non-serf skills
+                for(CtConstructor ctConstructor : skillClass.getDeclaredConstructors())
+                    ctConstructor.insertAfter("ownerSkill = this;");
 
+                //set ownerSkill when serf learns a new skill after load
+                classPool.getCtClass("com.wurmonline.server.skills.Skills")
+                        .getMethod("learn", "(IFZ)Lcom/wurmonline/server/skills/Skill;")
+                        .insertAfter(ReflectionUtility.convertToFullClassNames(
+                                "if(Players.getInstance().getPlayerOrNull(id) instanceof Serf && $_ != null)" +
+                                "$_.ownerSkill = TaskHandler.getTaskHandler(((Serf)Players.getInstance().getPlayer(id)).ownerId)" +
+                                        ".ownerSkills.getSkillOrLearn($1);"));
+
+                if(expShare > 0) {
+                    logger.info("Setting up expShare");
+                    classPool.getCtClass("com.wurmonline.server.skills.Skill")
+                            .getMethod("alterSkill", "(DZFZD)V")
+                            .insertBefore(ReflectionUtility.convertToFullClassNames(
+                                    "if(Players.getInstance().getPlayer(parent.getId()) instanceof Serf)" +
+                                            "   ownerSkill.alterSkill($1 * " + expShare + ", $2, $3, $4, $5);"
+                            ));
+                }
+                if(hivemind) {
+                    logger.info("Setting up hivemind");
+                    //Replace all fields but parent with the owner's
+                    ExprEditor ownerKnowledge = new ExprEditor() {
+                        @Override
+                        public void edit(FieldAccess fieldAccess) throws CannotCompileException {
+                            if(!fieldAccess.getFieldName().equals("parent")
+                                    && fieldAccess.getClassName().equals(skillClass.getName())
+                                    && !fieldAccess.isStatic())
+                                if(fieldAccess.isReader())
+                                    fieldAccess.replace("$_ = ownerSkill." + fieldAccess.getFieldName() + ";");
+                                else if(fieldAccess.isWriter())
+                                    fieldAccess.replace("ownerSkill." + fieldAccess.getFieldName() + " = $1;");
+                        }
+                    };
+                    for(CtMethod ctMethod : skillClass.getDeclaredMethods())
+                        ctMethod.instrument(ownerKnowledge);
+                    //Get player's skills from TaskHandler in case online serfs already have the owner's skilltree loaded
+                    ReflectionUtility.replaceMethodCall("com.wurmonline.server.skills.DbSkills", "load", null,
+                            "getPlayerDbCon", "if(Players.getInstance().getPlayerOrNull(id) instanceof Serf) return;" +
+                                    "else if(TaskHandler.getTaskHandler(id).ownerSkills != null) {" +
+                                    "   skills = TaskHandler.getSkillMapFor(id);" +
+                                    "   return;" +
+                                    "}" +
+                                    "else $_ = $proceed();");
+            }
+
+
+            }
+            if(debug) {
+                CtClass communicator = classPool.getCtClass("com.wurmonline.server.creatures.Communicator");
+                for(CtMethod ctMethod : communicator.getDeclaredMethods())
+                    if(ctMethod.getName().startsWith("reallyHandle_CMD") && !ctMethod.getName().equals("reallyHandle_CMD_MOVE_CREATURE"))
+                        ctMethod.insertBefore("logger.info(player.getName() + \": \" + \"" + ctMethod.getName() + "\");");
             }
 
         } catch (NotFoundException | CannotCompileException e) {
@@ -352,7 +391,7 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
     public void onPlayerLogout(Player player) {
         if((Creature)player instanceof Serf) {
             Serf serf = Serf.fromPlayer(player);
-            TaskHandler.getTaskHandler(serf.ownerId).serfs.remove(serf);
+            TaskHandler.getTaskHandler(serf.ownerId).removeSerf(serf);
         }
         else if(!alwaysOn)
             TaskHandler.getTaskHandler(player.getWurmId()).logoutSerfs();

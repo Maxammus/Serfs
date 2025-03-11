@@ -14,6 +14,7 @@ import com.wurmonline.server.zones.NoSuchZoneException;
 import com.wurmonline.server.zones.VolaTile;
 import com.wurmonline.server.zones.Zones;
 import com.wurmonline.shared.constants.CounterTypes;
+import mod.maxammus.serfs.Serfs;
 import mod.maxammus.serfs.actions.DropAllNonToolItems;
 import mod.maxammus.serfs.creatures.Serf;
 import mod.maxammus.serfs.util.ListUtil;
@@ -39,7 +40,6 @@ import static com.wurmonline.server.behaviours.Actions.REPAIR;
 
 public class Task implements CounterTypes {
     final Logger logger = Logger.getLogger(this.getClass().getName());
-//    static Connection con = ModSupportDb.getModSupportDb();
     public short action;
     public Vector3f pos = new Vector3f();
     public Serf assigned;
@@ -196,6 +196,8 @@ public class Task implements CounterTypes {
 
     public void startTask()
     {
+        if(assigned.getStatus().getHunger() > 60000)
+            assigned.getStatus().modifyHunger(-1000, assigned.getStatus().getNutritionlevel());
         assigned.getStatus().modifyStamina2(100);
         assigned.failedToCarry = false;
         receivedActionTimer = false;
@@ -478,8 +480,8 @@ public class Task implements CounterTypes {
 
     //TODO: Check if needed item is in inventory for continue actions/advanced creation
     public boolean taskActionIsAvailable(Serf serf, boolean fromTargetPosition) {
-        if(!prepareInventoryTasks())
-            return false;
+        if(isInventoryAction())
+            return prepareInventoryTasks();
         if(isTileTask() && !targetTileStructureExists())
             return false;
         Item activeItem = null;
@@ -490,6 +492,12 @@ public class Task implements CounterTypes {
         if(serf.lastAvailableActions == null)
             return false;
         return serf.lastAvailableActions.stream().anyMatch(actionEntry -> actionEntry.getNumber() == action);
+    }
+
+    private boolean isInventoryAction() {
+        return action == DropAllNonToolItems.actionId ||
+         action == Actions.TAKE ||
+         action == Actions.DROP;
     }
 
     public boolean isPossibleForSerf(Serf serf) {
@@ -549,14 +557,20 @@ public class Task implements CounterTypes {
                     tilecoords = Item.getDropTile(assigned);
                     final VolaTile t = Zones.getTileOrNull(tilecoords[0], tilecoords[1], assigned.isOnSurface());
                     if (t != null)
-                        if (t.getNumberOfItems(t.getDropFloorLevel(assigned.getFloorLevel())) < 99)
-                            return true;
+                        if (t.getNumberOfItems(t.getDropFloorLevel(assigned.getFloorLevel())) > 99)
+                            return false;
+                    pos = assigned.getPos3f();
+                    return true;
                 } catch (NoSuchZoneException e){
                     finishTask("Error");
                     return false;
                 }
             }
-        } else if (action == Actions.TAKE && getNumItemsCanTake(targetItemTemplate) > 0) {
+        } else if (action == Actions.TAKE) {
+            if(getNumItemsCanTake(targetItemTemplate) == 0) {
+                finishTask("Cannot carry item.");
+                return false;
+            }
             //Check if there's a container group
             if (!takeContainerGroup.isEmpty()) {
                 Item target = getClosestContainerWithItemInGroup(dropContainerGroup);
@@ -635,9 +649,13 @@ public class Task implements CounterTypes {
 
     //Set anything that needs to know the state of things as the task begins, e.g. serf's position after last action
     boolean initialize() {
+        if(Serfs.autoDropWhenCannotCarryActions.contains(action) && assigned.getInventory().getNumItemsNotCoins() >= 100) {
+            insertDropTask();
+            return false;
+        }
         initialized = true;
         try {
-            if(action == Actions.TAKE || isDropTask())
+            if(isInventoryAction())
                 return prepareInventoryTasks();
             //TODO: Handle advanced creation item retrieval
             //Recipe and creation actions where target needs to be in inventory - Make a take action to get it
@@ -915,5 +933,24 @@ public class Task implements CounterTypes {
             }
         }
         return false;
+    }
+
+    public void insertDropTask() {
+        Task dropTask = new Task(this);
+        dropTask.action = DropAllNonToolItems.actionId;
+        dropTask.doTimes = 1;
+        dropTask.whileTimerShows = false;
+        dropTask.whileActionAvailable = false;
+        dropTask.reAdd = false;
+        dropTask.setParent(assigned.taskQueue);
+        dropTask.setAssigned(assigned);
+        if(dropTask.taskActionIsAvailable(assigned, true)) {
+            //reset for later
+            initialized = false;
+            started = false;
+            //Put the new task first in line
+            assigned.taskQueue.addTask(0, dropTask);
+            assigned.log.add("Cannot carry more - pausing " + getActionName() + " to drop all non tools.");
+        }
     }
 }

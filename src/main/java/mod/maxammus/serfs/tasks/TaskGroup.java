@@ -102,14 +102,14 @@ public class TaskGroup extends TaskQueue {
     }
 
     @Override
-    public void addSerf(long serfId) {
-        super.addSerf(serfId);
+    public void addSerf(long serfId, boolean database) {
+        super.addSerf(serfId, database);
         groupwideTasks.putIfAbsent(serfId, new ArrayList<>());
     }
 
     @Override
-    public void removeSerf(long serfId) {
-        super.removeSerf(serfId);
+    public void removeSerf(long serfId, boolean database) {
+        super.removeSerf(serfId, database);
         groupwideTasks.remove(serfId);
     }
 

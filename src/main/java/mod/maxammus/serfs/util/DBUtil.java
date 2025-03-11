@@ -107,6 +107,7 @@ public class DBUtil {
             for(int i = 0; i < args.length; i++)
                 ps.setObject(i + 1, args[i]);
             ps.executeUpdate();
+            logger.info("SQL: " + statement + Arrays.toString(args));
         } catch (Exception e) {
             logger.warning("Exception in executeSingleStatement: " + e.getMessage() + " - Statement: \"" + statement + "\" Args: " + Arrays.toString(args));
             return false;

@@ -79,7 +79,7 @@ public class ContractAction implements ModAction {
                 }
                 if (performer instanceof Player && target.getTemplateId() == SerfContract.templateId) {
                     TaskHandler taskHandler = TaskHandler.getTaskHandler(performer.getWurmId());
-                    if(Serfs.maxActiveSerfs != -1 && taskHandler.serfs.size() >= Serfs.maxActiveSerfs) {
+                    if(Serfs.maxActiveSerfs != -1 && taskHandler.onlineSerfs.size() >= Serfs.maxActiveSerfs) {
                         performer.getCommunicator().sendNormalServerMessage("You cannot handle managing any more serfs at one time.");
                         return true;
                     }

@@ -21,12 +21,13 @@ Add serfs to Wurm to do your bidding.  Configurable from a single serf mining to
 
 **Areas:** Create an area from where you're facing.  Actions are sent to the entire area, depending on the type of action.  Item/creature actions will make a list of all targets in the area with that template (Felled trees, cows, etc).  Tile actions will do that action on every tile of the area where that action applies.
 
-_(Experimental)_ Chained area tasks take the first action in an area's queue as the "Main" action for the rest of the queue to be chained together with.  For example: Cut down tree -> chop up felled tree -> take logs -> drop logs (Drop container set to cart being dragged) will make that chain for every tree tile in the area
+_(Experimental)_ Chained area tasks take the first action in an area's queue as the "Main" action for the rest of the queue to be chained together with.  For example: Cut down tree -> chop up felled tree -> take logs -> drop logs (Drop container set to cart being dragged) will make that chain for every tile that can be cut down in the area
 
 **Automatic actions:** Certain actions that would be tedious to manage have been made automatic.
 * When crafting (Multi-step not currently supported) if the target item is not in the serf's inventory the serf will attempt to take it from the take-from container.
 * When doing actions that add items to the serfs inventory (Digging, harvesting, etc) if the serf cannot carry the item it will attempt to drop all non-tool items to the drop-to container.  Supported actions can be changed in serfs.properties
 * When tools reach 10 damage the serf will repair it.
+* Serfs start every action at max stamina
 
 **Configuration:** Many options to get exactly what you want from the mod.  Action blacklist, whitelist, max serfs per player, tradeable serfs, and more.
 

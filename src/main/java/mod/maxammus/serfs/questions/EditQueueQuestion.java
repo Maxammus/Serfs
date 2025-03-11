@@ -97,7 +97,7 @@ public class EditQueueQuestion implements ModQuestion {
         bmlBuilder
                 .addLabel("Serfs:", null, BMLBuilder.TextType.BOLD, Color.white);
         BMLBuilder serfTable = createTable(1);
-        for(Serf serf : taskHandler.serfs) {
+        for(Serf serf : taskHandler.onlineSerfs) {
             String name = serf.getName();
             serfTable
                     .addCheckbox("serf." + serf.getWurmId(), name, queue.assignedSerfs.contains(serf.getWurmId()));
@@ -194,7 +194,7 @@ public class EditQueueQuestion implements ModQuestion {
         bmlBuilder.addLabel("");
 
         BMLBuilder activeTaskTable = createTable(8);
-        for (Task task : queue.getActiveTasks()) {
+        for (Task task : queue.getActiveTasks(true)) {
             if (task.assigned == null)
                 continue;
             activeTaskTable
@@ -260,7 +260,7 @@ public class EditQueueQuestion implements ModQuestion {
                 } else if (key.startsWith("stop.")) {
                     queue.stop(Integer.parseInt(id));
                 } else if (key.startsWith("stopAll.")) {
-                    for(Task task : queue.getActiveTasks())
+                    for(Task task : queue.getActiveTasks(false))
                         task.finishTask("Told to stop all");
                 } else if (key.startsWith("clear.")) {
                     while(queue.queue.size() > 0)
@@ -283,7 +283,7 @@ public class EditQueueQuestion implements ModQuestion {
         String queueIdentity = queue.getIdentity();
         if(!queueIdentity.startsWith("Serf ")){
             ArrayList<Long> newSerfs = new ArrayList<>();
-            for (Serf serf : taskHandler.serfs)
+            for (Serf serf : taskHandler.onlineSerfs)
                 //update serfs like this rather than rebuilding the list to keep group-wide tasks correct
                 if (Boolean.parseBoolean(answers.getProperty("serf." + serf.getWurmId())))
                     newSerfs.add(serf.getWurmId());

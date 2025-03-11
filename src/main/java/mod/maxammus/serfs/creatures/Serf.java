@@ -14,6 +14,7 @@ import com.wurmonline.server.items.ItemFactory;
 import com.wurmonline.server.players.*;
 import com.wurmonline.server.questions.Question;
 import com.wurmonline.server.questions.Questions;
+import com.wurmonline.server.skills.Skill;
 import com.wurmonline.server.skills.Skills;
 import com.wurmonline.server.villages.NoSuchRoleException;
 import com.wurmonline.server.villages.VillageRole;
@@ -237,25 +238,9 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
     public boolean canCarry(final int weight) {
         failedToCarry = !super.canCarry(weight);
         Task activeTask = taskQueue.queue.get(0);
-        if(failedToCarry && activeTask != null && Serfs.autoDropWhenCannotCarryActions.stream().anyMatch(action -> action == activeTask.action)) {
-            Task dropTask = new Task(activeTask);
-            dropTask.action = DropAllNonToolItems.actionId;
-            dropTask.doTimes = 1;
-            dropTask.whileTimerShows = false;
-            dropTask.whileActionAvailable = false;
-            dropTask.reAdd = false;
-            dropTask.setParent(taskQueue);
-            dropTask.setAssigned(this);
-            if(dropTask.taskActionIsAvailable(this, true)) {
-                //reset for later
-                activeTask.initialized = false;
-                activeTask.started = false;
-                //Put the new task first in line
-                taskQueue.addTask(0, dropTask);
-                log.add("Cannot carry more - pausing " + activeTask.getActionName() + " to drop all non tools.");
-                return false;
-            }
-        }
+        if(failedToCarry && activeTask != null
+                && Serfs.autoDropWhenCannotCarryActions.stream().anyMatch(action -> action == activeTask.action))
+            activeTask.insertDropTask();
         return !failedToCarry;
     }
 
@@ -268,19 +253,11 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
         if(taskQueue == null) {
             taskQueue = new TaskQueue(ownerId, name);
             taskQueue.addToDb(ownerId);
-            taskQueue.addSerf(getWurmId());
+            taskQueue.addSerf(getWurmId(), true);
             taskQueue.playerId = ownerId;
             TaskHandler.taskQueues.put(taskQueue.queueId, taskQueue);
             taskHandler.serfQueues.add(taskQueue);
         }
-    }
-
-    @Override
-    public void destroy() {
-        super.destroy();
-        TaskHandler.getTaskHandler(ownerId).removeSerfFromAll(this);
-        if(!taskQueue.deleteFromDb())
-            logger.warning("Couldn't delete serf " + getWurmId() + " from TaskQueue database when destroying");
     }
 
     public void handleTeleport() {
@@ -348,14 +325,22 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
             return null;
         serf.ownerId = ownerId;
         serf.setupQueue(ownerId);
-        if(Serfs.hivemind)
-            try {
-                Field skillTree = ReflectionUtil.getField(Skills.class, "skills");
-                ReflectionUtil.setPrivateField(serf.skills, skillTree, TaskHandler.getSkillMapFor(ownerId));
-            } catch (NoSuchFieldException | IllegalAccessException e) {
-                logger.warning("Couldn't set hivemind skills for " + name);
-            }
         TaskHandler.getTaskHandler(ownerId).addSerf(serf);
+        if(Serfs.hivemind || Serfs.expShare > 0) {
+            Map<Integer, Skill> ownerSkills = TaskHandler.getSkillMapFor(ownerId);
+            if(Serfs.hivemind)
+                serf.skills.clone(ownerSkills
+                        .values()
+                        .toArray(new Skill[0]));
+            try {
+                Field ownerSkill = ReflectionUtil.getField(Skill.class, "ownerSkill");
+                for (Skill skill : serf.skills.getSkills())
+                    ReflectionUtil.setPrivateField(skill, ownerSkill, ownerSkills.get(skill.getNumber()));
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                logger.warning("Couldn't set ownerSkill field for serf");
+                return null;
+            }
+        }
         return serf;
     }
 }
