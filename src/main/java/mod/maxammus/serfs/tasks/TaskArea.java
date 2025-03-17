@@ -53,9 +53,6 @@ public class TaskArea extends TaskQueue implements CounterTypes {
         //Convert to radians
         this.rotation *= (float) (Math.PI / 180);
 
-        //Limit size to world border
-        this.length = Math.abs(Zones.safeTileX((int) (tileX + offset.x)) - tileX);
-        this.width =  Math.abs(Zones.safeTileY((int) (tileY - offset.y)) - tileY);
         //Trim area size to world border
         Vector2f dimensions = new Vector2f(width, length);
         dimensions.rotateAroundOrigin(this.rotation, true);
@@ -64,6 +61,7 @@ public class TaskArea extends TaskQueue implements CounterTypes {
         //Reverse the rotation to get correct dimensions back
         dimensions.rotateAroundOrigin(this.rotation, false);
         this.width  = (int) Math.abs(dimensions.x);
+        this.length = (int) Math.abs(dimensions.y);
         TaskHandler.taskQueues.put(queueId, this);
 
         addToDb();
