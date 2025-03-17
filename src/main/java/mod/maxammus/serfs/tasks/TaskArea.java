@@ -116,6 +116,8 @@ public class TaskArea extends TaskQueue implements CounterTypes {
         Vector3f targetPos = new Vector3f();
         int type = WurmId.getType(task.target);
         long targetId = NOID;
+        //Top level area actions should have exact targets
+        task.exactTarget = true;
 
         do {
             if (Task.isCreatureType(type)) {
