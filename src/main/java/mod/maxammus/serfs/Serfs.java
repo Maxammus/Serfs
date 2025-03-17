@@ -21,7 +21,6 @@ import mod.maxammus.serfs.tasks.TaskHandler;
 import mod.maxammus.serfs.tasks.TaskProfile;
 import mod.maxammus.serfs.util.DBUtil;
 import mod.maxammus.serfs.util.ReflectionUtility;
-import org.gotti.wurmunlimited.modloader.ReflectionUtil;
 import org.gotti.wurmunlimited.modloader.classhooks.HookManager;
 import org.gotti.wurmunlimited.modloader.interfaces.*;
 import org.gotti.wurmunlimited.modsupport.actions.ModActions;
@@ -204,9 +203,12 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
                 classPool.getCtClass("com.wurmonline.server.skills.Skills")
                         .getMethod("learn", "(IFZ)Lcom/wurmonline/server/skills/Skill;")
                         .insertAfter(ReflectionUtility.convertToFullClassNames(
-                                "if(Players.getInstance().getPlayerOrNull(id) instanceof Serf && $_ != null)" +
-                                "$_.ownerSkill = TaskHandler.getTaskHandler(((Serf)Players.getInstance().getPlayer(id)).ownerId)" +
-                                        ".ownerSkills.getSkillOrLearn($1);"));
+                                "if(Players.getInstance().getPlayerOrNull(id) instanceof Serf && $_ != null) {" +
+                                    "Skills ownerSkills = TaskHandler.getTaskHandler(((Serf)Players.getInstance().getPlayer(id)).ownerId).ownerSkills;" +
+                                    "$_.ownerSkill = ownerSkills.getSkillOrLearn($1);" +
+                                        "if($_.ownerSkill.isTemporary())" +
+                                            "$_.ownerSkill = ownerSkills.learn($$);" +
+                                "}"));
 
                 if(expShare > 0) {
                     logger.info("Setting up expShare");
