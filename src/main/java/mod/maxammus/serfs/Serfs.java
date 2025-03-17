@@ -245,17 +245,8 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
                                     "   return;" +
                                     "}" +
                                     "else $_ = $proceed();");
+                }
             }
-
-
-            }
-            if(debug) {
-                CtClass communicator = classPool.getCtClass("com.wurmonline.server.creatures.Communicator");
-                for(CtMethod ctMethod : communicator.getDeclaredMethods())
-                    if(ctMethod.getName().startsWith("reallyHandle_CMD") && !ctMethod.getName().equals("reallyHandle_CMD_MOVE_CREATURE"))
-                        ctMethod.insertBefore("logger.info(player.getName() + \": \" + \"" + ctMethod.getName() + "\");");
-            }
-
         } catch (NotFoundException | CannotCompileException e) {
             throw new RuntimeException(e);
         }
