@@ -1,8 +1,6 @@
 package mod.maxammus.serfs.tasks;
 
 import com.wurmonline.server.Items;
-import com.wurmonline.server.Players;
-import com.wurmonline.server.creatures.Creature;
 import com.wurmonline.server.items.Item;
 import mod.maxammus.serfs.creatures.Serf;
 import mod.maxammus.serfs.util.DBUtil;

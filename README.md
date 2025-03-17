@@ -28,6 +28,7 @@ _(Experimental)_ Chained area tasks take the first action in an area's queue as 
 * When doing actions that add items to the serfs inventory (Digging, harvesting, etc) if the serf cannot carry the item it will attempt to drop all non-tool items to the drop-to container.  Supported actions can be changed in serfs.properties
 * When tools reach 10 damage the serf will repair it.
 * Serfs start every action at max stamina
+* When too hungry to start an action they will regain some food at the cost of some nutrition.
 
 **Configuration:** Many options to get exactly what you want from the mod.  Action blacklist, whitelist, max serfs per player, tradeable serfs, and more.
 

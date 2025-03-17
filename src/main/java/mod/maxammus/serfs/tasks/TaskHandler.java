@@ -326,7 +326,9 @@ public class TaskHandler {
     public Item getSelectedItem(TaskProfile taskProfile) {
         if (taskProfile.getActiveItemTemplate() == null)
             return null;
-        return taskProfile.getFirstSerf().getInventory().findItem(taskProfile.getActiveItemTemplate().getTemplateId());
+        return ListUtil.findOrNull(
+                taskProfile.getFirstSerf().getAllItems(),
+                item -> item.getTemplate() == taskProfile.getActiveItemTemplate());
     }
 
     public ArrayList<TaskQueue> getQueues() {

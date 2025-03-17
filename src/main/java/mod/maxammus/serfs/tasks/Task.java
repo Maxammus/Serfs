@@ -1,6 +1,5 @@
 package mod.maxammus.serfs.tasks;
 
-import com.wurmonline.math.Vector2f;
 import com.wurmonline.math.Vector3f;
 import com.wurmonline.mesh.MeshIO;
 import com.wurmonline.mesh.Tiles;
@@ -90,7 +89,8 @@ public class Task implements CounterTypes {
                     targetItemTemplate = item.getRealTemplate();
                 else
                     targetItemTemplate = item.getTemplate();
-                if (item.isTopParentPile()) {
+                //Pile of items
+                if (item.getTemplateId() == 177) {
                     Item[] items = item.getItemsAsArray();
                     //TODO: handle piles with multiple item types
                     if(items.length > 0)
@@ -194,10 +194,9 @@ public class Task implements CounterTypes {
         assigned = creature;
     }
 
-    public void startTask()
-    {
+    public void startTask()  {
         if(assigned.getStatus().getHunger() > 60000)
-            assigned.getStatus().modifyHunger(-1000, assigned.getStatus().getNutritionlevel());
+            assigned.getStatus().modifyHunger(50000 - assigned.getStatus().getHunger(), Math.max(0, assigned.getStatus().getNutritionlevel() - 3));
         assigned.getStatus().modifyStamina2(100);
         assigned.failedToCarry = false;
         receivedActionTimer = false;
@@ -339,11 +338,9 @@ public class Task implements CounterTypes {
             return true;
         target = NOID;
         if(targetItemTemplate != null) {
-            for (Item item : assigned.getInventory().getItems())
-                if (item.getTemplate() == targetItemTemplate) {
-                    target = item.getWurmId();
-                    break;
-                }
+            Item targetItem = assigned.getInventory().findItem(targetItemTemplate.getTemplateId());
+            if (targetItem != null)
+                target = targetItem.getWurmId();
             if(target == NOID) {
                 VolaTile[] tiles = Zones.getTilesSurrounding((int) pos.x / 4, (int) pos.y / 4, layer >= 0, 1);
                 for (VolaTile tile : tiles) {
@@ -391,6 +388,7 @@ public class Task implements CounterTypes {
         assigned.log.add("finishing task: " + reason);
         assigned.taskQueue.queue.remove(this);
         assigned.getStatus().setPath(null);
+        assigned.stopCurrentAction();
         assigned = null;
         TaskQueue parent = getParent();
         if(parent != null) {
@@ -427,26 +425,25 @@ public class Task implements CounterTypes {
                 }
             }
             else {
-                Vector2f finalPos = getXYWithinTaskRange();
+                Vector3f finalPos = getPosWithinTaskRange();
                 if(finalPos == null)
                     return;
                 assigned.startPathingToTile(new PathTile(finalPos.x, finalPos.y, Zones.getTileIntForTile((int) finalPos.x / 4, (int) finalPos.y / 4, layer), layer >= 0, getFloor()));
-                assigned.log.add("Walking to task.");
             }
         }
     }
 
     private boolean isAssignedInRange() {
-        float range = 4f; //action < Actions.actionEntrys.length ? Actions.actionEntrys[action].getRange() : 4f;
+        float range = 2f; //action < Actions.actionEntrys.length ? Actions.actionEntrys[action].getRange() : 4f;
         if(WurmId.getType(target) == COUNTER_TYPE_CAVETILES) {
             int tilex = Tiles.decodeTileX(target);
             int tiley = Tiles.decodeTileY(target);
             final MeshIO mesh2 = Server.caveMesh;
             int tile = mesh2.getTile(tilex, tiley);
             int heightOffset = (int) (Tiles.decodeHeight(tile) / 10.0f);
-            return assigned.isWithinTileDistanceTo(tilex, tiley, heightOffset, (int) (range / 4));
+            return assigned.isWithinTileDistanceTo(tilex, tiley, heightOffset, (int) Math.ceil(range / 4));
         }
-        return assigned.getPos2f().distanceSquared(pos.x, pos.y) < range * range;
+        return assigned.getPos3f().distanceSquared(new Vector3f(pos.x, pos.y, pos.z)) < range * range;
     }
 
     private Action getAction() {
@@ -484,9 +481,7 @@ public class Task implements CounterTypes {
             return prepareInventoryTasks();
         if(isTileTask() && !targetTileStructureExists())
             return false;
-        Item activeItem = null;
-        if(activeItemTemplate != null)
-            activeItem = serf.getInventory().findItem(activeItemTemplate.getTemplateId());
+        Item activeItem = getActiveItem();
         long activeItemId = activeItem != null ? activeItem.getWurmId() : -1;
         TaskHandler.requestSerfActions(serf.getCommunicator(), (byte)-1, target, serf, activeItemId, fromTargetPosition);
         if(serf.lastAvailableActions == null)
@@ -534,6 +529,7 @@ public class Task implements CounterTypes {
                 if (targetContainer != null) {
                     setDropContainer(targetContainer);
                     pos = getDropContainer().getPos3f();
+                    layer = getDropContainer().isOnSurface() ? 0 : -1;
                     return true;
                 } else {
                     finishTask("No valid drop container with space");
@@ -544,6 +540,7 @@ public class Task implements CounterTypes {
             if (getDropContainer() != null) {
                 if (getDropContainer().testInsertItem(targetItem)) {
                     pos = getDropContainer().getPos3f();
+                    layer = getDropContainer().isOnSurface() ? 0 : -1;
                     return true;
                 } else {
                    finishTask("No space in drop container");
@@ -560,6 +557,7 @@ public class Task implements CounterTypes {
                         if (t.getNumberOfItems(t.getDropFloorLevel(assigned.getFloorLevel())) > 99)
                             return false;
                     pos = assigned.getPos3f();
+                    layer = assigned.getLayer();
                     return true;
                 } catch (NoSuchZoneException e){
                     finishTask("Error");
@@ -577,6 +575,7 @@ public class Task implements CounterTypes {
                 if (target != null) {
                     setTakeContainer(target);
                     pos = getTakeContainer().getPos3f();
+                    layer = getTakeContainer().isOnSurface() ? 0 : -1;
                     return true;
                 }
                 finishTask("No take container with target item");
@@ -585,6 +584,7 @@ public class Task implements CounterTypes {
             //Check current container
             if(getTakeContainer() != null) {
                 pos = getTakeContainer().getPos3f();
+                layer = getTakeContainer().isOnSurface() ? 0 : -1;
                 if (getTakeContainer().isBulkContainer())
                     return getTakeContainer().getItems().stream()
                             .anyMatch(item1 -> item1.getRealTemplate() == targetItemTemplate);
@@ -600,6 +600,7 @@ public class Task implements CounterTypes {
                 if (first!= null) {
                     target = first.getWurmId();
                     pos = first.getPos3f();
+                    layer = first.isOnSurface() ? 0 : -1;
                     return true;
                 }
                 finishTask("No target item nearby on the ground");
@@ -767,26 +768,27 @@ public class Task implements CounterTypes {
             Item[] items = tile.getItems();
             toRet.addAll(Arrays.asList(items));
         }
+        toRet.addAll(Arrays.asList(assigned.getAllItems()));
         return toRet;
     }
 
-    public Vector2f getXYWithinTaskRange() {
-        Vector2f pos2f = new Vector2f(pos.x, pos.y);
-        Vector2f toRet = pos2f;
-        float range = this.action < Actions.actionEntrys.length ? Actions.actionEntrys[action].getRange() / 2f : 1.5f;
-        Vector2f heading = pos2f.subtract(assigned.getPos2f());
+    public Vector3f getPosWithinTaskRange() {
+        Vector3f toRet = new Vector3f(pos);
+        float range = /*this.action < Actions.actionEntrys.length ? Actions.actionEntrys[action].getRange() / 2f : */1.5f;
+        Vector3f heading = pos.subtract(assigned.getPos3f());
         if(isTileTask()) {
             if(WurmId.getType(target) == CounterTypes.COUNTER_TYPE_CAVETILES) {
-                pos = pos.add(2, 2, 0);
+                //Set to center of tile
+                Vector3f pos3f = pos.add(2, 2, 0);
                 int tilex = Tiles.decodeTileX(target);
                 int tiley = Tiles.decodeTileY(target);
                 final MeshIO mesh = Server.caveMesh;
                 //if target tile is a cave wall check cardinal directions
-                if(!Tiles.isSolidCave(Tiles.decodeType(mesh.getTile(tilex, tiley)))) toRet.set(pos.x, pos.y );
-                else if(!Tiles.isSolidCave(Tiles.decodeType(mesh.getTile(tilex + 1, tiley)))) toRet.set(pos.x + 4, pos.y);
-                else if(!Tiles.isSolidCave(Tiles.decodeType(mesh.getTile(tilex - 1, tiley)))) toRet.set(pos.x - 4, pos.y);
-                else if(!Tiles.isSolidCave(Tiles.decodeType(mesh.getTile(tilex, tiley + 1)))) toRet.set(pos.x, pos.y + 4);
-                else if(!Tiles.isSolidCave(Tiles.decodeType(mesh.getTile(tilex, tiley - 1)))) toRet.set(pos.x, pos.y - 4);
+                if(!Tiles.isSolidCave(Tiles.decodeType(mesh.getTile(tilex, tiley)))) toRet.set(pos3f.x, pos3f.y, pos.z);
+                else if(!Tiles.isSolidCave(Tiles.decodeType(mesh.getTile(tilex + 1, tiley)))) toRet.set(pos3f.x + 4, pos3f.y, pos.z);
+                else if(!Tiles.isSolidCave(Tiles.decodeType(mesh.getTile(tilex - 1, tiley)))) toRet.set(pos3f.x - 4, pos3f.y, pos.z);
+                else if(!Tiles.isSolidCave(Tiles.decodeType(mesh.getTile(tilex, tiley + 1)))) toRet.set(pos3f.x, pos3f.y + 4, pos.z);
+                else if(!Tiles.isSolidCave(Tiles.decodeType(mesh.getTile(tilex, tiley - 1)))) toRet.set(pos3f.x, pos3f.y - 4, pos.z);
                 //all surrounding tiles are solid
                 else {
                     finishTask("Impossible to reach target tile.");
@@ -796,14 +798,22 @@ public class Task implements CounterTypes {
             //standing too close prevents finishing fences
             //TODO: figure out a better way for this
             else if(action == Actions.CONTINUE_BUILDING_FENCE)
-                toRet = pos2f.add(3, 3);
+                toRet = pos.add(3, 3, 0);
             else
-                toRet = pos2f.add(1, 1);
+                toRet = pos.add(1, 1, 0);
         }
         //Don't move if within range
-        else if(assigned.getPos2f().distance(pos2f) > range)
-            //set position a few units closer to serf instead of on top of target
-            toRet = pos2f.subtract(heading.normalize().mult(range));
+        else {
+            float distance = assigned.getPos3f().distance(pos);
+            if(distance > range)
+                //set position a few units closer to serf instead of on top of target
+                toRet = pos.subtract(heading.normalize().mult(Math.min(distance, range)));
+        }
+        try {
+            toRet.setZ(Math.max(0.0F, Zones.calculateHeight(pos.x, pos.y, isOnSurface())));
+        } catch (NoSuchZoneException e) {
+            logger.warning("No zone found when setting serf target height.");
+        }
         return toRet;
     }
 

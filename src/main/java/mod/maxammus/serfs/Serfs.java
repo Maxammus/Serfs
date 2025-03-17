@@ -33,6 +33,7 @@ import java.util.logging.Logger;
 
 //TODO: make hatchet a tool (type 38)
 //TODO: Current pathfinding only checks tile position, not layer.  Make cross-layer pathfinder
+//TODO: Handle giving instructions while serf is in combat
 public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable, ServerStartedListener, ItemTemplatesCreatedListener, ServerPollListener, PlayerLoginListener {
     private static final Logger logger = Logger.getLogger(Serfs.class.getName());
     private static ClassPool classPool;

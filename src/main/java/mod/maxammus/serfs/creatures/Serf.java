@@ -15,19 +15,16 @@ import com.wurmonline.server.players.*;
 import com.wurmonline.server.questions.Question;
 import com.wurmonline.server.questions.Questions;
 import com.wurmonline.server.skills.Skill;
-import com.wurmonline.server.skills.Skills;
 import com.wurmonline.server.villages.NoSuchRoleException;
 import com.wurmonline.server.villages.VillageRole;
 import com.wurmonline.server.zones.NoSuchZoneException;
 import com.wurmonline.server.zones.VolaTile;
 import com.wurmonline.server.zones.Zones;
 import mod.maxammus.serfs.Serfs;
-import mod.maxammus.serfs.actions.DropAllNonToolItems;
 import mod.maxammus.serfs.items.SerfContract;
 import mod.maxammus.serfs.tasks.Task;
 import mod.maxammus.serfs.tasks.TaskHandler;
 import mod.maxammus.serfs.tasks.TaskQueue;
-import mod.maxammus.serfs.util.DBUtil;
 import mod.maxammus.serfs.util.ListUtil;
 import org.gotti.wurmunlimited.modloader.ReflectionUtil;
 import org.jetbrains.annotations.NotNull;
@@ -134,6 +131,7 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
             path = pf.findPath(this, getTileX(), getTileY(), targetX, targetY, isOnSurface(), 20);
             if (path != null && path.getSize() != 0) {
                 setPathfindcounter(0);
+                log.add("Walking to task.");
                 return path;
             }
             else {
@@ -220,7 +218,7 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
         if (!taskQueue.queue.isEmpty() && taskQueue.queue.get(0).assigned != null) {
             try {
                 setPathfindcounter(0);
-                Vector2f pathPos = taskQueue.queue.get(0).getXYWithinTaskRange();
+                Vector3f pathPos = taskQueue.queue.get(0).getPosWithinTaskRange();
                 Vector3f oldPos = getPos3f();
                 Vector3f pathPos3f = new Vector3f(pathPos.x, pathPos.y, Zones.calculateHeight(pathPos.x, pathPos.y, isOnSurface()));
                 Vector3f diff = pathPos3f.subtract(oldPos);
