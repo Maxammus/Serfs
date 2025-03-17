@@ -72,9 +72,9 @@ public class ContractAction implements ModAction {
 
             @Override
             public boolean action(Action act, Creature performer, Item target, short action, float counter) {
-                if (target.isTraded() || (target.lastOwner > 0 && !target.isOwner(performer)) || target.getTopParentOrNull() != performer.getInventory())
+                if (target.getTopParentOrNull() != performer.getInventory())
                 {
-                    performer.getCommunicator().sendNormalServerMessage("You cannot do that.");
+                    performer.getCommunicator().sendNormalServerMessage("You must be holding the contract to use it.");
                     return true;
                 }
                 if (performer instanceof Player && target.getTemplateId() == SerfContract.templateId) {
