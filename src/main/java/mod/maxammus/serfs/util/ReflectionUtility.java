@@ -1,10 +1,9 @@
 package mod.maxammus.serfs.util;
 
-import javassist.*;
-import javassist.bytecode.BadBytecode;
-import javassist.bytecode.CodeIterator;
-import javassist.bytecode.ConstPool;
-import javassist.bytecode.Opcode;
+import javassist.CannotCompileException;
+import javassist.ClassPool;
+import javassist.CtMethod;
+import javassist.NotFoundException;
 import javassist.expr.ExprEditor;
 import javassist.expr.FieldAccess;
 import javassist.expr.MethodCall;
@@ -21,19 +20,20 @@ public class ReflectionUtility {
 
     public static void init() {
         classPool = HookManager.getInstance().getClassPool();
-        ReflectionUtility.mapClassName("Player", "com.wurmonline.server.players.Player");
-        ReflectionUtility.mapClassName("Players", "com.wurmonline.server.Players");
-        ReflectionUtility.mapClassName("Serf", "mod.maxammus.serfs.creatures.Serf");
-        ReflectionUtility.mapClassName("Serfs", "mod.maxammus.serfs.Serfs");
-        ReflectionUtility.mapClassName("TaskHandler", "mod.maxammus.serfs.tasks.TaskHandler");
-        ReflectionUtility.mapClassName("Creature", "com.wurmonline.server.creatures.Creature");
-        ReflectionUtility.mapClassName("SerfContract", "mod.maxammus.serfs.items.SerfContract");
-        ReflectionUtility.mapClassName("SerfCommunicator", "com.wurmonline.server.creatures.SerfCommunicator");
-        ReflectionUtility.mapClassName("WurmId", "com.wurmonline.server.WurmId");
+        ReflectionUtility.mapClassName("com.wurmonline.server.players.Player");
+        ReflectionUtility.mapClassName("com.wurmonline.server.Players");
+        ReflectionUtility.mapClassName("mod.maxammus.serfs.creatures.Serf");
+        ReflectionUtility.mapClassName("mod.maxammus.serfs.Serfs");
+        ReflectionUtility.mapClassName("mod.maxammus.serfs.tasks.TaskHandler");
+        ReflectionUtility.mapClassName("com.wurmonline.server.creatures.Creature");
+        ReflectionUtility.mapClassName("mod.maxammus.serfs.items.SerfContract");
+        ReflectionUtility.mapClassName("com.wurmonline.server.creatures.SerfCommunicator");
+        ReflectionUtility.mapClassName("com.wurmonline.server.WurmId");
+        ReflectionUtility.mapClassName("com.wurmonline.server.skills.Skills");
     }
 
-    public static void mapClassName(String simpleName, String fullName) {
-        classNames.put(simpleName, fullName);
+    public static void mapClassName(String fullName) {
+        classNames.put(fullName.substring(fullName.lastIndexOf(".") + 1), fullName);
     }
 
     public static String convertToFullClassNames(String src) {
