@@ -71,6 +71,8 @@ public class SerfCommunicator extends Communicator {
             player.resetLastSentToolbelt();
             //Skip tutorial
             player.addTitle(Titles.Title.Educated);
+            //Skip theft popup on drop
+            player.setTheftWarned(true);
             return;
         }
         //Send the rest to the player
