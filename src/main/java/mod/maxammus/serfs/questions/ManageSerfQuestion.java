@@ -3,8 +3,10 @@ package mod.maxammus.serfs.questions;
 import com.wurmonline.server.creatures.Creature;
 import com.wurmonline.server.items.Item;
 import com.wurmonline.server.items.ItemTemplate;
+import com.wurmonline.server.items.NoSpaceException;
 import com.wurmonline.server.questions.Question;
 import com.wurmonline.server.utils.BMLBuilder;
+import com.wurmonline.shared.constants.ProtoConstants;
 import mod.maxammus.serfs.Serfs;
 import mod.maxammus.serfs.creatures.Serf;
 import mod.maxammus.serfs.tasks.TaskQueue;
@@ -209,13 +211,26 @@ public class ManageSerfQuestion implements ModQuestion {
             return;
         ArrayList<ItemTemplate> templates = new ArrayList<>();
         Serf serf = taskProfile.getFirstSerf();
-        if (serf != null)
-            serf.getInventory()
-                .getItems()
-                .forEach(item -> {
-                    if(!templates.contains(item.getTemplate()))
-                        templates.add(item.getTemplate());
+        if (serf != null) {
+            Arrays.stream(serf.getInventory()
+                            .getAllItems(true))
+                    .forEach(item -> {
+                        if(!templates.contains(item.getTemplate()))
+                            templates.add(item.getTemplate());
                 });
+            try {
+                Item handItem =
+                        serf.getEquippedItem(ProtoConstants.EQUIPMENT_SLOT_ARMOR_LEFT_HAND);
+                if(handItem != null && !templates.contains(handItem.getTemplate()))
+                    templates.add(handItem.getTemplate());
+                handItem = serf.getEquippedItem(ProtoConstants.EQUIPMENT_SLOT_ARMOR_RIGHT_HAND);
+                if(handItem != null && !templates.contains(handItem.getTemplate()))
+                    templates.add(handItem.getTemplate());
+            } catch (NoSpaceException e) {
+                logger.info("Couldn't get held item for " + serf.getName());
+            }
+
+        }
         itemTemplateMap.put(identity, templates);
 
         Map<String, Integer> groups = new HashMap<>();
