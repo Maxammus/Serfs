@@ -195,7 +195,7 @@ public class TaskQueue {
         }
     }
 
-    public boolean addToDb(long playerId) {
+    public boolean addToDb() {
         return DBUtil.executeSingleStatement("INSERT INTO TaskQueues (QUEUEID, PLAYERID, NAME, PAUSED) VALUES (?,?,?,?)", queueId, playerId, this.name, paused);
     }
 

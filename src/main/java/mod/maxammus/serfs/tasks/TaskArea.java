@@ -60,7 +60,7 @@ public class TaskArea extends TaskQueue implements CounterTypes {
         this.width =  Math.abs(Zones.safeTileY((int) (tileY - offset.y)) - tileY);
         TaskHandler.taskQueues.put(queueId, this);
 
-        addToDb(playerId);
+        addToDb();
     }
 
     public TaskArea(ResultSet rs) throws SQLException {
@@ -321,8 +321,8 @@ public class TaskArea extends TaskQueue implements CounterTypes {
     }
 
     @Override
-    public boolean addToDb(long playerId) {
-        if(super.addToDb(playerId)
+    public boolean addToDb() {
+        if(super.addToDb()
                 && DBUtil.executeSingleStatement( "INSERT INTO TaskAreas (" +
                 "QUEUEID, TILEX, TILEY, LENGTH, WIDTH, FLOOR, LAYER, COUNTER, ROTATION, CHAINEDTASKS, PRECHECKTASKS) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 queueId, tileX, tileY, length, width, floor, layer, counter, rotation, chainedTasks, precheckTasks))

@@ -252,7 +252,7 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
         taskQueue = ListUtil.findOrNull(taskHandler.serfQueues, tq -> tq.name.equals(name));
         if(taskQueue == null) {
             taskQueue = new TaskQueue(ownerId, name);
-            taskQueue.addToDb(ownerId);
+            taskQueue.addToDb();
             taskQueue.addSerf(getWurmId(), true);
             taskQueue.playerId = ownerId;
             TaskHandler.taskQueues.put(taskQueue.queueId, taskQueue);

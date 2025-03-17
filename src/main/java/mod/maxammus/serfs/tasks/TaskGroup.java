@@ -19,7 +19,7 @@ public class TaskGroup extends TaskQueue {
 
     public TaskGroup(long playerId, String name) {
         super(playerId, name);
-        addToDb(playerId);
+        addToDb();
     }
 
     public TaskGroup(ResultSet rs) throws SQLException {
@@ -136,8 +136,8 @@ public class TaskGroup extends TaskQueue {
     }
 
     @Override
-    public boolean addToDb(long playerId) {
-        if(super.addToDb(playerId)
+    public boolean addToDb() {
+        if(super.addToDb()
                 && DBUtil.executeSingleStatement("INSERT INTO TaskGroups (QUEUEID, GROUPWIDE) VALUES (?,?)", queueId, groupwide))
             return true;
         return false;
