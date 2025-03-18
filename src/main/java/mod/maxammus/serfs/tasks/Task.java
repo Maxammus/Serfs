@@ -20,17 +20,17 @@ import mod.maxammus.serfs.util.ListUtil;
 import mod.maxammus.serfs.util.MiscUtil;
 import org.gotti.wurmunlimited.modloader.ReflectionUtil;
 import org.gotti.wurmunlimited.modsupport.ModSupportDb;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
+import java.util.function.Predicate;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
@@ -238,11 +238,23 @@ public class Task implements CounterTypes {
         long targetId = -1;
 
         if(action == Actions.TAKE) {
+            if(exactTarget) {
+                Item item = Items.getItemOptional(target).orElse(null);
+                if(item == null) {
+                    finishTask("Target item doesn't exist");
+                    return;
+                }
+                targetItems.add(item);
+                Item parent = item.getTopParentOrNull();
+                //Add watcher to parent to prevent an exception
+                if (parent != null && parent.isHollow())
+                    parent.addWatcher(parent.getWurmId(), assigned);
+            }
             //Take from ground
-            if(getTakeContainer() == null)
-                for (VolaTile vt : Zones.getTilesSurrounding((int)pos.x / 4, (int)pos.y / 4, isOnSurface(), 1)) {
+            else if(getTakeContainer() == null) {
+                for (VolaTile vt : Zones.getTilesSurrounding((int) pos.x / 4, (int) pos.y / 4, isOnSurface(), 1)) {
                     Item[] items = vt.getItems();
-                    for(Item i : items) {
+                    for (Item i : items) {
                         Item parent = i.getTopParentOrNull();
                         //Add watcher to parent to prevent an exception
                         if (parent != null && parent.isHollow()) {
@@ -252,6 +264,7 @@ public class Task implements CounterTypes {
                     }
                     targetItems.addAll(Arrays.asList(items));
                 }
+            }
             else
                 targetItems = getTakeContainer().getItems();
         }
@@ -262,8 +275,10 @@ public class Task implements CounterTypes {
         }
 
         if(action == DropAllNonToolItems.actionId) {
+            //Hatchet, smelting pot
+            List<Integer> toolIds = Arrays.asList(7, 788);
             itemIds.addAll(targetItems.stream()
-                    .filter(item -> !item.isTool() && (getDropContainer() == null || !getDropContainer().isBulkContainer() || item.isBulk()))
+                    .filter(item -> (!item.isTool() && !toolIds.contains(item.getTemplateId())) && (getDropContainer() == null || !getDropContainer().isBulkContainer() || item.isBulk()))
                     .map(Item::getWurmId)
                     .collect(Collectors.toList()));
             repeatedCount++;
@@ -338,7 +353,9 @@ public class Task implements CounterTypes {
             return true;
         target = NOID;
         if(targetItemTemplate != null) {
-            Item targetItem = assigned.getInventory().findItem(targetItemTemplate.getTemplateId());
+            Item targetItem = getNearbyItemsWithTemplate(targetItemTemplate).stream()
+                    .findFirst()
+                    .orElse(null);
             if (targetItem != null)
                 target = targetItem.getWurmId();
             if(target == NOID) {
@@ -351,6 +368,12 @@ public class Task implements CounterTypes {
                         break;
                     }
                 }
+            }
+            if(action == Actions.UNEQUIP) {
+                Item item = ListUtil.findOrNull(assigned.getAllItems(),
+                        item1 -> item1.getTemplate() == targetItemTemplate);
+                if (item != null)
+                    target = item.getWurmId();
             }
         }
         if(targetCreatureTemplate != null) {
@@ -368,6 +391,64 @@ public class Task implements CounterTypes {
         else
             finishTask("Couldn't find nearby target.");
         return target != NOID;
+    }
+
+    private @Nullable Item findCreationMaterial() {
+        List<Item> nearby = getNearbyItemsWithTemplate(targetItemTemplate);
+        if(nearby.isEmpty())
+            return null;
+        Item toRet = nearby.get(0);
+        //Creation actions
+        if(action > 10000 && activeItemTemplate != null && targetItemTemplate != null) {
+            try {
+                CreationEntry creation = CreationMatrix.getInstance().getCreationEntry(
+                        activeItemTemplate.getTemplateId(),
+                        targetItemTemplate.getTemplateId(),
+                        action - 10000);
+                ItemTemplate template = ItemTemplateFactory.getInstance().getTemplate(creation.getObjectCreated());
+                if (activeItemTemplate.getTemplateId() == creation.getObjectTarget() && targetItemTemplate.getTemplateId() == creation.getObjectSource()) {
+                    assigned.log.add("Active and target item are backwards, filtering target items not supported.");
+                    return toRet;
+                }
+                Item realSource = getActiveItem();
+                if(realSource == null)
+                    return toRet;
+
+                Method checkSaneAmounts;
+                try {
+                    checkSaneAmounts = ReflectionUtil.getMethod(CreationEntry.class, "checkSaneAmounts");
+                } catch (NoSuchMethodException e) {
+                    logger.warning("Couldn't find CreationEntry.checkSaneAmounts");
+                    return null;
+                }
+                //Filter any items that don't have enough material for the crafted item
+                Predicate<Item> filter = targetItem -> {
+                    try {
+                        int sourceWeightToRemove = creation.getSourceWeightToRemove(realSource, targetItem, template, creation.isAdvanced());
+                        int targetWeightToRemove = creation.getTargetWeightToRemove(realSource, targetItem, template, creation.isAdvanced());
+                        if (creation.getObjectCreated() == 1272 || creation.getObjectCreated() == 1347) {
+                            targetWeightToRemove = targetItemTemplate.getWeightGrams();
+                        }
+                        ReflectionUtil.callPrivateMethod(creation, checkSaneAmounts, realSource, sourceWeightToRemove, targetItem, targetWeightToRemove, template, assigned, creation.isAdvanced());
+                    } catch (IllegalAccessException e) {
+                        logger.warning("Couldn't run CreationEntry.checkSaneAmounts - " + e.getMessage());
+                        return false;
+                    } catch (InvocationTargetException e) {
+                        //checkSaneAmounts fails by throwing an exception
+                        return false;
+                    }
+                    return true;
+                };
+                //Filter metal creation where the item isn't glowing
+                if (targetItemTemplate.isMetal() && activeItemTemplate.isMetal())
+                    filter = filter.and(targetItem -> targetItem.getTemperature() > 3500);
+                return ListUtil.findOrNull(nearby, filter);
+            } catch (NoSuchEntryException | NoSuchTemplateException e) {
+                logger.info("Error getting creation target for serf task");
+                return null;
+            }
+        }
+        return toRet;
     }
 
     private Item getActiveItem() {
@@ -571,9 +652,9 @@ public class Task implements CounterTypes {
             }
             //Check if there's a container group
             if (!takeContainerGroup.isEmpty()) {
-                Item target = getClosestContainerWithItemInGroup(dropContainerGroup);
-                if (target != null) {
-                    setTakeContainer(target);
+                Item container = getClosestContainerWithItemInGroup(dropContainerGroup);
+                if (container != null) {
+                    setTakeContainer(container);
                     pos = getTakeContainer().getPos3f();
                     layer = getTakeContainer().isOnSurface() ? 0 : -1;
                     return true;
@@ -595,12 +676,17 @@ public class Task implements CounterTypes {
             }
             //taking from ground
             else {
-                Set<Item> groundItems = getNearbyGroundItems();
-                Item first = ListUtil.findOrNull(groundItems, item1 -> item1.getTemplate() == targetItemTemplate);
-                if (first!= null) {
-                    target = first.getWurmId();
-                    pos = first.getPos3f();
-                    layer = first.isOnSurface() ? 0 : -1;
+                Item targetItem;
+                if(exactTarget)
+                    targetItem = Items.getItemOptional(target).orElse(null);
+                else {
+                    List<Item> nearbyItems = getNearbyItemsWithTemplate(targetItemTemplate);
+                    targetItem = nearbyItems.get(0);
+                }
+                if (targetItem!= null) {
+                    this.target = targetItem.getWurmId();
+                    pos = targetItem.getPos3f();
+                    layer = targetItem.isOnSurface() ? 0 : -1;
                     return true;
                 }
                 finishTask("No target item nearby on the ground");
@@ -671,6 +757,14 @@ public class Task implements CounterTypes {
                     takeTask.reAdd = false;
                     takeTask.setParent(assigned.taskQueue);
                     takeTask.setAssigned(assigned);
+                    //If not taking from a bulk container get a target that can actually be used for creation
+                    if(getTakeContainer() == null || !getTakeContainer().isBulkContainer()) {
+                        Item targetItem = findCreationMaterial();
+                        if(targetItem != null) {
+                            takeTask.target = targetItem.getWurmId();
+                            takeTask.exactTarget = true;
+                        }
+                    }
                     if (takeTask.prepareInventoryTasks()) {
                         //reset for later
                         initialized = started = false;
@@ -694,10 +788,12 @@ public class Task implements CounterTypes {
                 pos = creature.getPos3f();
             }
             else if(isTileTask()) {
+                layer = Tiles.decodeLayer(target);
                 pos.x = Tiles.decodeTileX(target) * 4;
                 pos.y = Tiles.decodeTileY(target) * 4;
-                pos.z = Tiles.decodeHeightOffset(target) * 4;
-                layer = Tiles.decodeLayer(target);
+                try {
+                    pos.z = Zones.calculateHeight(pos.x, pos.y, layer >= 0);
+                } catch (NoSuchZoneException ignored) { }
             }
             //TODO: handle other target types that might need it
             else {
@@ -761,14 +857,23 @@ public class Task implements CounterTypes {
     }
 
 
-    private Set<Item> getNearbyGroundItems() {
-        Set<Item> toRet = new HashSet<>();
+    private List<Item> getNearbyItemsWithTemplate(ItemTemplate targetItemTemplate) {
+        List<Item> toRet = new ArrayList<>();
+        for(Item item : assigned.getAllItems())
+            if(item.getTemplate() == targetItemTemplate)
+                toRet.add(item);
+        if(!toRet.isEmpty())
+            return toRet;
         Set<VolaTile> tiles = assigned.currentTile.getThisAndSurroundingTiles(1);
         for (VolaTile tile : tiles) {
-            Item[] items = tile.getItems();
-            toRet.addAll(Arrays.asList(items));
+            for(Item item : tile.getItems()) {
+                if(item.getTemplate() == targetItemTemplate)
+                    toRet.add(item);
+                for(Item item2 : item.getAllItems(true))
+                    if(item2.getTemplate() == targetItemTemplate)
+                        toRet.add(item2);
+            }
         }
-        toRet.addAll(Arrays.asList(assigned.getAllItems()));
         return toRet;
     }
 

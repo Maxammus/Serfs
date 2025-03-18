@@ -342,4 +342,12 @@ public class TaskArea extends TaskQueue implements CounterTypes {
         if(queue.isEmpty())
             counter = 0;
     }
+
+    @Override
+    public void removeTask(Task task)
+    {
+        super.removeTask(task);
+        if(queue.isEmpty())
+            counter = 0;
+    }
 }
