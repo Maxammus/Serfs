@@ -757,7 +757,7 @@ public class Task implements CounterTypes {
                     takeTask.reAdd = false;
                     takeTask.setParent(assigned.taskQueue);
                     takeTask.setAssigned(assigned);
-                    //If not taking from a bulk container get a target that can actually be used for creation
+                    //If not taking from a bulk container make sure the target can actually be used for creation
                     if(getTakeContainer() == null || !getTakeContainer().isBulkContainer()) {
                         Item targetItem = findCreationMaterial();
                         if(targetItem != null) {
@@ -778,9 +778,19 @@ public class Task implements CounterTypes {
             if(target == NOID)
                 return true;
             if(isItemTask()) {
-                Item item = Items.getItem(target);
-                layer = item.isOnSurface() ? 0 : -1;
-                pos = item.getPos3f();
+                if(exactTarget) {
+                    Item item = Items.getItemOptional(target).orElse(null);
+                    if(item == null) {
+                        finishTask("Exact target couldn't be found.");
+                        return false;
+                    }
+                    layer = item.isOnSurface() ? 0 : -1;
+                    pos = item.getPos3f();
+                }
+                else {
+                    layer = assigned.isOnSurface() ? 0 : -1;
+                    pos = assigned.getPos3f();
+                }
             }
             else if(isCreatureTask()) {
                 Creature creature = Creatures.getInstance().getCreature(target);
@@ -801,7 +811,7 @@ public class Task implements CounterTypes {
                 layer = assigned.getLayer();
             }
             return true;
-        } catch (NoSuchItemException | NoSuchCreatureException e) {
+        } catch (NoSuchCreatureException e) {
             finishTask("Target doesn't exist.");
         }
         return false;
