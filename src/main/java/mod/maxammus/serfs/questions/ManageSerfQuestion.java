@@ -1,5 +1,6 @@
 package mod.maxammus.serfs.questions;
 
+import com.wurmonline.server.behaviours.Actions;
 import com.wurmonline.server.creatures.Creature;
 import com.wurmonline.server.items.Item;
 import com.wurmonline.server.items.ItemTemplate;
@@ -66,17 +67,15 @@ public class ManageSerfQuestion implements ModQuestion {
 
     private void addSerfs() {
         bmlBuilder.addLabel("Serfs:", null, TextType.BOLD, Color.white);
-        BMLBuilder serfTable = createTable(5);
+        BMLBuilder serfTable = createTable(6);
         taskHandler.onlineSerfs.forEach(serf ->
                 serfTable
-                       .addButton("editQueue." + serf.taskQueue.queueId, "Manage", 45, 16, true)
-                       .addLabel(serf.getName())
-                       .addLabel("Instructions: " + (serf.taskQueue.queue.size()))
-   //                    .addLabel("At:" + taskQueue.queue.get(0).pos.x + " | " + taskQueue.queue.get(0).pos.y)
-   //                    .addLabel("From: " + taskQueue.queue.get(0).parent.getIdentity())
-                       .addLabel("Items: " + serf.getInventory().getNumItemsNotCoins())
-                       //.addButton("stop." + serf.taskQueue.queue.get(0).id + "." + serf.taskQueue.getIdentity(), "Stop")
-                       .addButton("getContract." + serf.getWurmId(), "Recall", 42, 16, true));
+                        .addButton("editQueue." + serf.taskQueue.queueId, "Manage", 45, 16, true)
+                        .addLabel(serf.getName())
+                        .addLabel("Instructions: " + (serf.taskQueue.queue.size()))
+                        .addButton("lookInventory." + serf.getWurmId(), "Inventory", 52, 16, true)
+                        .addLabel("Items: " + serf.getInventory().getNumItemsNotCoins())
+                        .addButton("getContract." + serf.getWurmId(), "Recall", 42, 16, true));
 
         bmlBuilder
                 .addString(serfTable.toString())
@@ -309,6 +308,14 @@ public class ManageSerfQuestion implements ModQuestion {
                 } else if (key.startsWith("editQueue.")) {
                     EditQueueQuestion.create(responder, question.getTarget(), Long.parseLong(id));
                     return;
+                } else if (key.startsWith("lookInventory.")) {
+                    Serf serf = Serf.fromId(Long.parseLong(id));
+//                    responder.removeItemWatched(serf.getInventory());
+                    if(responder.addItemWatched(serf.getInventory())) {
+                        responder.getCommunicator().sendOpenInventoryWindow(serf.getInventory().getWurmId(), serf.getName() + " inventory");
+//                        serf.getInventory().removeWatcher(responder, true, true);
+                        serf.getInventory().addWatcher(serf.getInventory().getWurmId(), responder);
+                    }
                 } else if (key.startsWith("getContract.")) {
                     Serf serf;
                     try {

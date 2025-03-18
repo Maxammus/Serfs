@@ -246,6 +246,19 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
                                     "}" +
                                     "else $_ = $proceed();");
                 }
+                logger.info("Allowing owners to see serf inventories");
+                classPool.getMethod("com.wurmonline.server.players.Player", "checkItemsWatched")
+                        .instrument(new ExprEditor()  {
+                            //don't need to edit the 2nd call
+                            int edits = 0;
+                            public void edit(MethodCall m) throws CannotCompileException {
+                                if(m.getMethodName().equals("isWithinDistanceTo") && edits++ == 0)
+                                    m.replace(ReflectionUtility.convertToFullClassNames("$_ = $proceed($$) || (checkItem.isInventory() &&" +
+                                            "Serf.fromId(checkItem.getOwnerId()) != null &&" +
+                                            "Serf.fromId(checkItem.getOwnerId()).ownerId == getWurmId());"));
+                            }
+                        });
+
             }
         } catch (NotFoundException | CannotCompileException e) {
             throw new RuntimeException(e);
