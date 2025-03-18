@@ -155,20 +155,25 @@ public class ManageSerfQuestion implements ModQuestion {
             int takeContainerIndex = containerDropdown.indexOf(profile.getTakeContainerGroup());
             int dropContainerIndex = containerDropdown.indexOf(profile.getDropContainerGroup());
             //not found in containerDropdown
-            if(takeContainerIndex == -1)
-                takeContainerIndex = containers.indexOf(profile.getTakeContainer()) + groups + 1;
-            if(dropContainerIndex == -1)
-                dropContainerIndex = containers.indexOf(profile.getDropContainer()) + groups + 1;
-            //not found in containers either
-            if(takeContainerIndex == groups) {
-                takeContainerIndex = 0;
-                profile.setTakeContainerGroup("");
-                profile.takeContainerId = NOID;
+            if(takeContainerIndex == -1) {
+                takeContainerIndex = containers.indexOf(profile.getTakeContainer());
+                if(takeContainerIndex == -1) {
+                    takeContainerIndex = 0;
+                    profile.setTakeContainerGroup("");
+                    profile.takeContainerId = NOID;
+                }
+                else
+                    takeContainerIndex += groups + 1;
             }
-            if(dropContainerIndex == groups) {
-                dropContainerIndex = 0;
-                profile.setDropContainerGroup("");
-                profile.dropContainerId = NOID;
+            if(dropContainerIndex == -1) {
+                dropContainerIndex = containers.indexOf(profile.getDropContainer());
+                if(dropContainerIndex == -1) {
+                    dropContainerIndex = 0;
+                    profile.setDropContainerGroup("");
+                    profile.dropContainerId = NOID;
+                }
+                else
+                    dropContainerIndex += groups + 1;
             }
 
             int activeItemIndex = itemDropdown.indexOf(profile.getActiveItemTemplateName());
