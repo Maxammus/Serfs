@@ -23,7 +23,8 @@ public class AddContainerToQueueAction implements ModAction {
     static final String actionString = "Add container to queue";
     public AddContainerToQueueAction() {
         actionId = (short) ModActions.getNextActionId();
-        actionEntry = ActionEntry.createEntry(actionId, actionString, "adding", new int[]{ 0 });
+        //{ACTION_TYPE_QUICK, ACTION_TYPE_IGNORERANGE}
+        actionEntry = ActionEntry.createEntry(actionId, actionString, "adding", new int[]{ 0, 23 });
         ModActions.registerAction(actionEntry);
         logger.info("Creating action " + actionString + " - ID: " + actionId);
     }
