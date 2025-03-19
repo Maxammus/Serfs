@@ -32,7 +32,5 @@ _(Experimental)_ Chained area tasks take the first action in an area's queue as 
 
 **Configuration:** Many options to get exactly what you want from the mod.  Action blacklist, whitelist, max serfs per player, tradeable serfs, and more.
 
-Known issues:
-Cannot use items in your inventory to instruct serfs (Because the instructor only sees what serfs can do, and serfs cannot do things to your inventory items).
 
 _Thanks to Roe Bit for the inspiration and Tyoda, Arathok, Sindusk, Bdew (and probably every other modder) for publishing their work for me to peek at._

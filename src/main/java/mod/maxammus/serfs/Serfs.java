@@ -2,6 +2,7 @@ package mod.maxammus.serfs;
 
 import com.wurmonline.server.Items;
 import com.wurmonline.server.Server;
+import com.wurmonline.server.behaviours.ItemBehaviour;
 import com.wurmonline.server.creatures.Communicator;
 import com.wurmonline.server.creatures.Creature;
 import com.wurmonline.server.items.Item;
@@ -258,6 +259,21 @@ public class Serfs implements WurmServerMod, Configurable, Initable, PreInitable
                                             "Serf.fromId(checkItem.getOwnerId()).ownerId == getWurmId());"));
                             }
                         });
+
+                logger.info("Showing instruction actions on items in owner's inventory");
+                String ownerOrSerf = "{ $_ = $proceed();" +
+                                "if(performer instanceof Serf && $_ == ((Serf)performer).ownerId)" +
+                                " $_ = performer.getWurmId();}";
+                CtMethod[] getBehavioursFor = classPool.getCtClass("com.wurmonline.server.behaviours.ItemBehaviour")
+                        .getDeclaredMethods("getBehavioursFor");
+                for(CtMethod ctMethod : getBehavioursFor)
+                    ctMethod.instrument(ReflectionUtility.getMethodCallReplacer("getOwner", ownerOrSerf));
+
+                classPool.getMethod("com.wurmonline.server.behaviours.BehaviourDispatcher",
+                        "requestActionForItemsBodyIdsCoinIds")
+                        .instrument(ReflectionUtility.getMethodCallReplacer(
+                                "getOwnerId",
+                                ownerOrSerf.replaceAll("performer", "creature")));
 
             }
         } catch (NotFoundException | CannotCompileException e) {
