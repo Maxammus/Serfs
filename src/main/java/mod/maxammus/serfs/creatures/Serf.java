@@ -177,24 +177,6 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
         return super.poll();
     }
 
-    //TODO: look into how death is handled for players
-    public void setDeathEffects(final boolean freeDeath, final int dtilex, final int dtiley) {
-        removeWoundMod();
-        modifyFightSkill(dtilex, dtiley);
-        setDestroyed();
-        try {
-            status.setDead(true);
-        } catch (final IOException e) {
-            logger.warning("setDead failed while " + getName() + " is dying  - " + e.getMessage());
-        }
-        getStatus().setStunned(0.0f, false);
-        trimAttackers(true);
-        //TODO: another way to respawn
-        setTeleportPoints(getPosX(), getPosY(), getLayer(), getFloorLevel());
-        startTeleporting();
-        respawn();
-    }
-
     public boolean turnIntoContract() {
         Creature owner = Players.getInstance().getPlayerOrNull(ownerId);
         if(owner == null) {
