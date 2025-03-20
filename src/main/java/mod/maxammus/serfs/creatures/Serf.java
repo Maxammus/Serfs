@@ -1,17 +1,19 @@
 package mod.maxammus.serfs.creatures;
 
 import com.wurmonline.communication.SocketConnection;
-import com.wurmonline.math.Vector2f;
 import com.wurmonline.math.Vector3f;
-import com.wurmonline.server.*;
-import com.wurmonline.server.behaviours.*;
-import com.wurmonline.server.creatures.*;
+import com.wurmonline.server.MiscConstants;
+import com.wurmonline.server.Players;
+import com.wurmonline.server.behaviours.ActionEntry;
+import com.wurmonline.server.creatures.Communicator;
+import com.wurmonline.server.creatures.Creature;
 import com.wurmonline.server.creatures.ai.NoPathException;
 import com.wurmonline.server.creatures.ai.Path;
 import com.wurmonline.server.creatures.ai.PathFinder;
 import com.wurmonline.server.items.Item;
 import com.wurmonline.server.items.ItemFactory;
-import com.wurmonline.server.players.*;
+import com.wurmonline.server.players.Player;
+import com.wurmonline.server.players.PlayerInfo;
 import com.wurmonline.server.questions.Question;
 import com.wurmonline.server.questions.Questions;
 import com.wurmonline.server.skills.Skill;
@@ -21,6 +23,7 @@ import com.wurmonline.server.zones.NoSuchZoneException;
 import com.wurmonline.server.zones.VolaTile;
 import com.wurmonline.server.zones.Zones;
 import mod.maxammus.serfs.Serfs;
+import mod.maxammus.serfs.actions.DropAllNonToolItems;
 import mod.maxammus.serfs.items.SerfContract;
 import mod.maxammus.serfs.tasks.Task;
 import mod.maxammus.serfs.tasks.TaskHandler;
@@ -238,7 +241,7 @@ public class Serf extends CustomPlayerClass implements MiscConstants {
         Task activeTask = taskQueue.queue.get(0);
         if(failedToCarry && activeTask != null
                 && Serfs.autoDropWhenCannotCarryActions.stream().anyMatch(action -> action == activeTask.action))
-            activeTask.insertDropTask();
+            activeTask.insertTask(DropAllNonToolItems.actionId);
         return !failedToCarry;
     }
 

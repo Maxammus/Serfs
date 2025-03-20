@@ -35,7 +35,7 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import static com.wurmonline.server.MiscConstants.NOID;
-import static com.wurmonline.server.behaviours.Actions.REPAIR;
+import static com.wurmonline.server.behaviours.Actions.*;
 
 public class Task implements CounterTypes {
     final Logger logger = Logger.getLogger(this.getClass().getName());
@@ -203,11 +203,12 @@ public class Task implements CounterTypes {
         assigned.log.add("starting task: " + getActionName());
         started = true;
         assigned.turnTowardsPoint(pos.x, pos.y);
-        if(action == Actions.TAKE || isDropTask()) {
+        if(action == TAKE || isDropTask()) {
             handleMoveItems();
             return;
         }
-        if(!isTileTask() && !exactTarget)
+        repeatedCount++;
+        if(!isTileTask() && (!exactTarget || action == IMPROVE))
             if(!findNearbyTargetFromTemplate())
                 return;
         try {
@@ -227,8 +228,6 @@ public class Task implements CounterTypes {
                  NoSuchCreatureException | NoSuchBehaviourException e) {
             //TODO: Higher priority channel for messages like these?
             finishTask("Couldn't start action - " + e.getMessage());
-        }finally {
-            repeatedCount++;
         }
     }
 
@@ -237,7 +236,7 @@ public class Task implements CounterTypes {
         Set<Item> targetItems = new HashSet<>();
         long targetId = -1;
 
-        if(action == Actions.TAKE) {
+        if(action == TAKE) {
             if(exactTarget) {
                 Item item = Items.getItemOptional(target).orElse(null);
                 if(item == null) {
@@ -251,7 +250,7 @@ public class Task implements CounterTypes {
                     parent.addWatcher(parent.getWurmId(), assigned);
             }
             //Take from ground
-            else if(getTakeContainer() == null) {
+            else if(getTakeContainerWithItem(targetItemTemplate) == null) {
                 for (VolaTile vt : Zones.getTilesSurrounding((int) pos.x / 4, (int) pos.y / 4, isOnSurface(), 1)) {
                     Item[] items = vt.getItems();
                     for (Item i : items) {
@@ -266,12 +265,25 @@ public class Task implements CounterTypes {
                 }
             }
             else
-                targetItems = getTakeContainer().getItems();
+                targetItems = getTakeContainerWithItem(targetItemTemplate).getItems();
         }
         else {
-            if(getDropContainer() != null)
-                targetId = getDropContainer().getWurmId();
-            targetItems = assigned.getInventory().getItems();
+            if(dropContainerId != -10)
+                targetId = dropContainerId;
+            if(exactTarget) {
+                Item item = Items.getItemOptional(target).orElse(null);
+                if(item == null) {
+                    finishTask("Target item doesn't exist");
+                    return;
+                }
+                targetItems.add(item);
+                Item parent = item.getTopParentOrNull();
+                //Add watcher to parent to prevent an exception
+                if (parent != null && parent.isHollow())
+                    parent.addWatcher(parent.getWurmId(), assigned);
+            }
+            else
+                targetItems = assigned.getInventory().getItems();
         }
 
         if(action == DropAllNonToolItems.actionId) {
@@ -294,7 +306,7 @@ public class Task implements CounterTypes {
                 if (itemTemplate == targetItemTemplate) {
                     itemIds.add(item.getWurmId());
                     //Amount of items to take from bulk is handled in a later question, just need the one
-                    if (action == Actions.TAKE && getTakeContainer() != null && getTakeContainer().isBulkContainer()) {
+                    if (action == TAKE && getTakeContainerWithItem(targetItemTemplate) != null && getTakeContainerWithItem(targetItemTemplate).isBulkContainer()) {
                         assigned.numItemsToTake = Math.min(item.getBulkNums(), getNumItemsCanTake(itemTemplate));
                         //No more repeating
                         repeatedCount = doTimes;
@@ -314,7 +326,7 @@ public class Task implements CounterTypes {
             for (int i = 0; i < itemIds.size(); ++i)
                 targets[i] = itemIds.get(i);
             try {
-                BehaviourDispatcher.action(assigned, assigned.getCommunicator(), -1, targets, Actions.DROP_AS_PILE);
+                BehaviourDispatcher.action(assigned, assigned.getCommunicator(), -1, targets, DROP_AS_PILE);
             } catch (FailedException | NoSuchBehaviourException | NoSuchPlayerException | NoSuchCreatureException |
                      NoSuchItemException e) {
                 logger.warning("Failed to dispatch action in handleMoveItems - " + e.getMessage());
@@ -348,33 +360,136 @@ public class Task implements CounterTypes {
     }
 
     private boolean findNearbyTargetFromTemplate() {
-        //inventory tasks just need templates not ids
-        if(action == Actions.TAKE || isDropTask())
+        if(isInventoryAction())
             return true;
         target = NOID;
         if(targetItemTemplate != null) {
-            Item targetItem = getNearbyItemsWithTemplate(targetItemTemplate).stream()
-                    .findFirst()
-                    .orElse(null);
-            if (targetItem != null)
+            if(action == IMPROVE) {
+                //Get the lowest quality item
+                Item targetItem = getNearbyItemsWithTemplate(targetItemTemplate).stream()
+                            .filter(item ->
+                                    !item.isNewbieItem() && !item.isChallengeNewbieItem()
+                                    && (!item.isMetal() || item.isNoTake() || item.getTemperature() > 3500))
+                            .min((a, b) -> (int) (a.getQualityLevel() * 100 - b.getQualityLevel() * 100))
+                            .orElse(null);
+                if(targetItem == null) {
+                    finishTask("Target not found");
+                    return false;
+                }
                 target = targetItem.getWurmId();
-            if(target == NOID) {
-                VolaTile[] tiles = Zones.getTilesSurrounding((int) pos.x / 4, (int) pos.y / 4, layer >= 0, 1);
-                for (VolaTile tile : tiles) {
-                    Item item = ListUtil.findOrNull(tile.getItems(),
-                            tileItem -> tileItem.getTemplate() == targetItemTemplate);
-                    if (item != null) {
-                        target = item.getWurmId();
-                        break;
+                exactTarget = true;
+
+                if(targetItem.getDamage() > 0.0f) {
+                    Task repairTask = insertTask(REPAIR);
+                    repairTask.target = targetItem.getWurmId();
+                    repairTask.exactTarget = true;
+                }
+                try {
+                    //improved by adding material
+                    if(targetItem.creationState == 0) {
+                        activeItemTemplate = ItemTemplateFactory.getInstance().getTemplate(
+                                MethodsItems.getImproveTemplateId(targetItem));
+                        Predicate<Item> canImp = item -> item.getTemplate() == activeItemTemplate
+                                && (!activeItemTemplate.isMetalLump() || item.getTemperature() > 3500)
+                                && (Materials.isLeather(item.getMaterial()) || item.getQualityLevel() > targetItem.getQualityLevel());
+                        Item active = getActiveItem();
+                        if(active == null || !canImp.test(active)) {
+                            //can't use active item, drop it
+                            if(active != null) {
+                                Task dropTask = insertTask(DROP);
+                                dropTask.targetItemTemplate = activeItemTemplate;
+                                dropTask.target = active.getWurmId();
+                                dropTask.exactTarget = true;
+                            }
+                            Item newActive = null;
+                            if(!takeContainerGroup.isEmpty() || takeContainerId != -10) {
+                                Item takeContainer = getTakeContainerWithItem(activeItemTemplate);
+                                if (takeContainer != null)
+                                    //Get the lowest quality material that can be used to improve
+                                    newActive = Arrays.stream(takeContainer.getAllItems(true))
+                                            .filter(canImp)
+                                            .min((a, b) -> (int) (a.getQualityLevel() * 100 - b.getQualityLevel() * 100))
+                                            .orElse(null);
+                            }
+                            else
+                                newActive = getNearbyItemsWithTemplate(activeItemTemplate).stream()
+                                        .filter(canImp)
+                                        .min((a, b) -> (int) (a.getQualityLevel() * 100 - b.getQualityLevel() * 100))
+                                        .orElse(null);
+                            if(newActive != null) {
+                                //Get new material
+                                Task takeTask = insertTask(TAKE);
+                                takeTask.target = newActive.getWurmId();
+                                takeTask.targetItemTemplate = activeItemTemplate;
+                                takeTask.exactTarget = true;
+                            }
+                            else {
+                                finishTask("Couldn't find suitable material to improve with");
+                                return false;
+                            }
+                        }
                     }
+                    else
+                        activeItemTemplate = ItemTemplateFactory.getInstance().getTemplate(
+                                MethodsItems.getItemForImprovement(targetItem.getMaterial(), targetItem.creationState));
+                    //Water
+                    if(activeItemTemplate.getTemplateId() == 128) {
+                        if(getActiveItem() == null) {
+                            Item waterHolder = null;
+                            for(Item item : assigned.getAllItems())
+                                if(item.isContainerLiquid() && item.isEmpty(true)) {
+                                    waterHolder = item;
+                                    break;
+                                }
+                            if(waterHolder == null) {
+                                finishTask("No empty container to fill with water");
+                                return false;
+                            }
+                            Item newTarget = null;
+                            if(!takeContainerGroup.isEmpty() || takeContainerId != -10) {
+                                Item takeContainer = getTakeContainerWithItem(activeItemTemplate);
+                                if (takeContainer != null)
+                                    //Get the lowest quality material that can be used to improve
+                                    newTarget = takeContainer.findItem(activeItemTemplate.getTemplateId());
+                            }
+                            else
+                                newTarget = getNearbyItemsWithTemplate(activeItemTemplate).stream()
+                                        .filter(item -> item.getTemplate() == activeItemTemplate)
+                                        .findFirst()
+                                        .orElse(null);
+                            if(newTarget != null) {
+                                //Get new material
+                                Task fillTask = insertTask(FILL);
+                                //TODO: This can get another item with the same template, add activeItemId?
+                                fillTask.activeItemTemplate = waterHolder.getTemplate();
+                                fillTask.target = newTarget.getWurmId();
+                                fillTask.targetItemTemplate = activeItemTemplate;
+                                fillTask.exactTarget = true;
+                                return false;
+                            }
+                            finishTask("Couldn't find water");
+                            return false;
+                        }
+                    }
+                } catch (NoSuchTemplateException e) {
+                    logger.warning("Missing improving tool template.");
                 }
             }
-            if(action == Actions.UNEQUIP) {
-                Item item = ListUtil.findOrNull(assigned.getAllItems(),
-                        item1 -> item1.getTemplate() == targetItemTemplate);
-                if (item != null)
-                    target = item.getWurmId();
-            }
+            else
+                getNearbyItemsWithTemplate(targetItemTemplate).stream()
+                    .findFirst()
+                    .ifPresent(targetItem -> target = targetItem.getWurmId());
+//            if(target == NOID) {
+//                VolaTile[] tiles = Zones.getTilesSurrounding((int) pos.x / 4, (int) pos.y / 4, layer >= 0, 1);
+//                for (VolaTile tile : tiles) {
+//                    Item item = ListUtil.findOrNull(tile.getItems(),
+//                            tileItem -> tileItem.getTemplate() == targetItemTemplate);
+//                    if (item != null) {
+//                        target = item.getWurmId();
+//                        break;
+//                    }
+//                }
+//            }
         }
         if(targetCreatureTemplate != null) {
             VolaTile[] tiles = Zones.getTilesSurrounding((int) pos.x / 4, (int) pos.y / 4, layer >= 0, 1);
@@ -394,10 +509,18 @@ public class Task implements CounterTypes {
     }
 
     private @Nullable Item findCreationMaterial() {
-        List<Item> nearby = getNearbyItemsWithTemplate(targetItemTemplate);
-        if(nearby.isEmpty())
+        List<Item> items = Collections.emptyList();
+        if(!takeContainerGroup.isEmpty() || takeContainerId != -10) {
+            Item takeContainer = getTakeContainerWithItem(targetItemTemplate);
+            if (takeContainer != null)
+                items = Arrays.stream(takeContainer.getAllItems(true))
+                        .collect(Collectors.toList());
+        }
+        else
+            items = getNearbyItemsWithTemplate(targetItemTemplate);
+        if(items.isEmpty())
             return null;
-        Item toRet = nearby.get(0);
+        Item toRet = items.get(0);
         //Creation actions
         if(action > 10000 && activeItemTemplate != null && targetItemTemplate != null) {
             try {
@@ -407,7 +530,7 @@ public class Task implements CounterTypes {
                         action - 10000);
                 ItemTemplate template = ItemTemplateFactory.getInstance().getTemplate(creation.getObjectCreated());
                 if (activeItemTemplate.getTemplateId() == creation.getObjectTarget() && targetItemTemplate.getTemplateId() == creation.getObjectSource()) {
-                    assigned.log.add("Active and target item are backwards, filtering target items not supported.");
+                    assigned.log.add("Active and target item are reversed, can't choose target");
                     return toRet;
                 }
                 Item realSource = getActiveItem();
@@ -442,7 +565,7 @@ public class Task implements CounterTypes {
                 //Filter metal creation where the item isn't glowing
                 if (targetItemTemplate.isMetal() && activeItemTemplate.isMetal())
                     filter = filter.and(targetItem -> targetItem.getTemperature() > 3500);
-                return ListUtil.findOrNull(nearby, filter);
+                return ListUtil.findOrNull(items, filter);
             } catch (NoSuchEntryException | NoSuchTemplateException e) {
                 logger.info("Error getting creation target for serf task");
                 return null;
@@ -572,12 +695,12 @@ public class Task implements CounterTypes {
 
     private boolean isInventoryAction() {
         return action == DropAllNonToolItems.actionId ||
-         action == Actions.TAKE ||
-         action == Actions.DROP;
+         action == TAKE ||
+         action == DROP;
     }
 
     public boolean isPossibleForSerf(Serf serf) {
-        if(isItemTask() && action == Actions.TAKE) {
+        if(isItemTask() && action == TAKE) {
             int carryAmt = MiscUtil.min(
                     whileTimerShows || whileActionAvailable ? 99 : doTimes,
                     serf.getCarryCapacityFor(targetItemTemplate.getWeightGrams()),
@@ -609,8 +732,8 @@ public class Task implements CounterTypes {
                 Item targetContainer = getClosestContainerWithSpaceInGroup(dropContainerGroup);
                 if (targetContainer != null) {
                     setDropContainer(targetContainer);
-                    pos = getDropContainer().getPos3f();
-                    layer = getDropContainer().isOnSurface() ? 0 : -1;
+                    pos = targetContainer.getPos3f();
+                    layer = targetContainer.isOnSurface() ? 0 : -1;
                     return true;
                 } else {
                     finishTask("No valid drop container with space");
@@ -619,9 +742,10 @@ public class Task implements CounterTypes {
             }
             //Check current container
             if (getDropContainer() != null) {
-                if (getDropContainer().testInsertItem(targetItem)) {
-                    pos = getDropContainer().getPos3f();
-                    layer = getDropContainer().isOnSurface() ? 0 : -1;
+                Item dropContainer = getDropContainer();
+                if (dropContainer.testInsertItem(targetItem)) {
+                    pos = dropContainer.getPos3f();
+                    layer = dropContainer.isOnSurface() ? 0 : -1;
                     return true;
                 } else {
                    finishTask("No space in drop container");
@@ -645,31 +769,31 @@ public class Task implements CounterTypes {
                     return false;
                 }
             }
-        } else if (action == Actions.TAKE) {
+        } else if (action == TAKE) {
             if(getNumItemsCanTake(targetItemTemplate) == 0) {
                 finishTask("Cannot carry item.");
                 return false;
             }
             //Check if there's a container group
             if (!takeContainerGroup.isEmpty()) {
-                Item container = getClosestContainerWithItemInGroup(dropContainerGroup);
-                if (container != null) {
-                    setTakeContainer(container);
-                    pos = getTakeContainer().getPos3f();
-                    layer = getTakeContainer().isOnSurface() ? 0 : -1;
-                    return true;
+                Item container = getClosestContainerWithItemInGroup(targetItemTemplate, takeContainerGroup);
+                if (container == null) {
+                    finishTask("No take container with target item");
+                    return false;
                 }
-                finishTask("No take container with target item");
-                return false;
+                setTakeContainer(container);
             }
             //Check current container
-            if(getTakeContainer() != null) {
-                pos = getTakeContainer().getPos3f();
-                layer = getTakeContainer().isOnSurface() ? 0 : -1;
-                if (getTakeContainer().isBulkContainer())
-                    return getTakeContainer().getItems().stream()
+            if(takeContainerId != -10) {
+                Item container = getTakeContainerWithItem(targetItemTemplate);
+                if(container == null)
+                    return false;
+                pos = container.getPos3f();
+                layer = container.isOnSurface() ? 0 : -1;
+                if (container.isBulkContainer())
+                    return container.getItems().stream()
                             .anyMatch(item1 -> item1.getRealTemplate() == targetItemTemplate);
-                if (getTakeContainer().findItem(targetItemTemplate.getTemplateId()) != null)
+                if (container.findItem(targetItemTemplate.getTemplateId()) != null)
                     return true;
                 finishTask("No take container with target item");
                 return false;
@@ -697,7 +821,7 @@ public class Task implements CounterTypes {
     }
 
     private boolean isDropTask() {
-        return action == Actions.DROP || action == Actions.DROP_AS_PILE || action == DropAllNonToolItems.actionId;
+        return action == DROP || action == DROP_AS_PILE || action == DropAllNonToolItems.actionId;
     }
 
     private boolean targetTileStructureExists() {
@@ -737,7 +861,7 @@ public class Task implements CounterTypes {
     //Set anything that needs to know the state of things as the task begins, e.g. serf's position after last action
     boolean initialize() {
         if(Serfs.autoDropWhenCannotCarryActions.contains(action) && assigned.getInventory().getNumItemsNotCoins() >= 100) {
-            insertDropTask();
+            insertTask(DropAllNonToolItems.actionId);
             return false;
         }
         initialized = true;
@@ -749,35 +873,28 @@ public class Task implements CounterTypes {
             if(action >= 8000 && targetItemTemplate != null && !targetItemTemplate.isNoTake() && !targetItemTemplate.isUseOnGroundOnly()) {
                 if(assigned.getInventory().findItem(targetItemTemplate.getTemplateId()) == null) {
                     //Check if a take task can get the item
-                    Task takeTask = new Task(this);
-                    takeTask.action = Actions.TAKE;
-                    takeTask.doTimes = 1;
-                    takeTask.whileTimerShows = false;
-                    takeTask.whileActionAvailable = false;
-                    takeTask.reAdd = false;
-                    takeTask.setParent(assigned.taskQueue);
-                    takeTask.setAssigned(assigned);
+                    Task takeTask = insertTask(TAKE);
+                    takeTask.targetItemTemplate = targetItemTemplate;
                     //If not taking from a bulk container make sure the target can actually be used for creation
-                    if(getTakeContainer() == null || !getTakeContainer().isBulkContainer()) {
+                    if(getTakeContainerWithItem(targetItemTemplate) == null || !getTakeContainerWithItem(targetItemTemplate).isBulkContainer()) {
                         Item targetItem = findCreationMaterial();
                         if(targetItem != null) {
                             takeTask.target = targetItem.getWurmId();
                             takeTask.exactTarget = true;
                         }
                     }
-                    if (takeTask.prepareInventoryTasks()) {
-                        //reset for later
-                        initialized = started = false;
-                        //Put the new task first in line
-                        assigned.taskQueue.addTask(0, takeTask);
-                        assigned.log.add("Pausing " + getActionName() + " to get a " + targetItemTemplate.getName());
-                        return false;
+                    if(!takeTask.initialize()) {
+                        takeTask.finishTask("Couldn't initialize.");
+                        finishTask("Couldn't get missing item.");
                     }
+                    return false;
                 }
             }
             if(target == NOID)
                 return true;
             if(isItemTask()) {
+                if(action == UNEQUIP)
+                    exactTarget = true;
                 if(exactTarget) {
                     Item item = Items.getItemOptional(target).orElse(null);
                     if(item == null) {
@@ -817,12 +934,30 @@ public class Task implements CounterTypes {
         return false;
     }
 
-    private Item getClosestContainerWithItemInGroup(String group) {
+    public Task insertTask(short taskAction) {
+        Task newTask = new Task(this);
+        newTask.action = taskAction;
+        newTask.doTimes = 1;
+        newTask.whileTimerShows = false;
+        newTask.whileActionAvailable = false;
+        newTask.reAdd = false;
+        newTask.exactTarget = false;
+        newTask.setParent(assigned.taskQueue);
+        newTask.setAssigned(assigned);
+        //reset for later
+        initialized = started = false;
+        //Put the new task first in line
+        assigned.taskQueue.addTask(0, newTask);
+        assigned.log.add("Pausing " + getActionName() + " to " + newTask.getActionName());
+        return newTask;
+    }
+
+    private Item getClosestContainerWithItemInGroup(ItemTemplate itemTemplate, String group) {
         TaskQueue parent = getParent();
         if(parent != null) {
             //TODO: Does this work with bulk items?
             return parent.getContainerGroup(group).stream()
-                    .filter(item -> item.findItem(targetItemTemplate.getTemplateId()) != null)
+                    .filter(item -> item.findItem(itemTemplate.getTemplateId()) != null)
                     //Sort and pick closest
                     .min((o1, o2) -> (int) (o1.getPos3f().distance(pos) - o2.getPos3f().distance(pos)))
                     .orElse(null);
@@ -861,8 +996,8 @@ public class Task implements CounterTypes {
             if(recipe != null)
                 return recipe.getName();
         }
-        else if(action < Actions.actionEntrys.length)
-            return Actions.actionEntrys[action].getActionString();
+        else if(action < actionEntrys.length)
+            return actionEntrys[action].getActionString();
         return "";
     }
 
@@ -912,7 +1047,7 @@ public class Task implements CounterTypes {
             }
             //standing too close prevents finishing fences
             //TODO: figure out a better way for this
-            else if(action == Actions.CONTINUE_BUILDING_FENCE)
+            else if(action == CONTINUE_BUILDING_FENCE)
                 toRet = pos.add(3, 3, 0);
             else
                 toRet = pos.add(1, 1, 0);
@@ -1030,8 +1165,17 @@ public class Task implements CounterTypes {
         this.parentId = parent.queueId;
     }
 
-    public Item getTakeContainer() {
-        return Items.getItemOptional(takeContainerId).orElse(null);
+    public Item getTakeContainerWithItem(ItemTemplate template) {
+        if(!takeContainerGroup.isEmpty()) {
+            Item takeContainer = getClosestContainerWithItemInGroup(template, takeContainerGroup);
+            if(takeContainer != null) {
+                takeContainerId = takeContainer.getWurmId();
+            }
+            return takeContainer;
+        }
+        else if(takeContainerId != NOID)
+            return Items.getItemOptional(takeContainerId).orElse(null);
+        return null;
     }
 
     public void setTakeContainer(Item takeContainerId) {
@@ -1058,24 +1202,5 @@ public class Task implements CounterTypes {
             }
         }
         return false;
-    }
-
-    public void insertDropTask() {
-        Task dropTask = new Task(this);
-        dropTask.action = DropAllNonToolItems.actionId;
-        dropTask.doTimes = 1;
-        dropTask.whileTimerShows = false;
-        dropTask.whileActionAvailable = false;
-        dropTask.reAdd = false;
-        dropTask.setParent(assigned.taskQueue);
-        dropTask.setAssigned(assigned);
-        if(dropTask.taskActionIsAvailable(assigned, true)) {
-            //reset for later
-            initialized = false;
-            started = false;
-            //Put the new task first in line
-            assigned.taskQueue.addTask(0, dropTask);
-            assigned.log.add("Cannot carry more - pausing " + getActionName() + " to drop all non tools.");
-        }
     }
 }
