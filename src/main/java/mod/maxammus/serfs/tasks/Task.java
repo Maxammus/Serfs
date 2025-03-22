@@ -422,6 +422,7 @@ public class Task implements CounterTypes {
                                 takeTask.target = newActive.getWurmId();
                                 takeTask.targetItemTemplate = activeItemTemplate;
                                 takeTask.exactTarget = true;
+                                return false;
                             }
                             else {
                                 finishTask("Couldn't find suitable material to improve with");
